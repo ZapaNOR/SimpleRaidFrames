@@ -1,0 +1,12 @@
+package-as: SimpleRaidFrames
+enable-nolib-creation: no
+wago-id: 
+curse-id: 
+
+ignore:
+    - README.md
+    - .git/
+    - .github/
+    - .vscode/
+    - .pkgmeta
+    - release.sh
