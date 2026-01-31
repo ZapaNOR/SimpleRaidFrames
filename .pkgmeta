@@ -1,7 +1,7 @@
 package-as: SimpleRaidFrames
 enable-nolib-creation: no
-wago-id: 
-curse-id: 
+wago-id: EGPedZN1
+curse-id: 1450238
 
 ignore:
     - README.md
