@@ -1,0 +1,13 @@
+## Interface: 120000, 120001
+## Title: Simple Raid Frames
+## Notes: Some simple settings for the native raid frames.
+## Category-enUS:  |cFF9CDF95Zapa|r Development
+## Author: Zapa
+## Version: 1.0
+## SavedVariables: SimpleRaidFramesDB
+## X-Wago-ID: EGPedZN1
+## X-Curse-Project-ID: 1450238
+
+Libs/Init.xml
+
+SimpleRaidFrames.lua

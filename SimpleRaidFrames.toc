@@ -5,7 +5,19 @@
 ## Author: Zapa
 ## Version: 1.0
 ## SavedVariables: SimpleRaidFramesDB
+## X-Wago-ID: EGPedZN1
+## X-Curse-Project-ID: 1450238
 
 Libs/Init.xml
 
 SimpleRaidFrames.lua
+SimpleRaidFrames_Indicators.lua
+SimpleRaidFrames_Names.lua
+SimpleRaidFrames_RoleIcons.lua
+SimpleRaidFrames_Health.lua
+SimpleRaidFrames_Auras.lua
+SimpleRaidFrames_PrivateAuras.lua
+SimpleRaidFrames_Party.lua
+SimpleRaidFrames_Hooks.lua
+SimpleRaidFrames_Settings.lua
+SimpleRaidFrames_Main.lua
