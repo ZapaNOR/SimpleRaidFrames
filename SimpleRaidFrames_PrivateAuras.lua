@@ -21,7 +21,7 @@ end
 local function applyPrivateAuraSettings(frame)
 	if not frame or not frame.PrivateAuraAnchors or not M.DB then return end
 	if not isFrameInRaidContainer(frame) then return end
-	if not canMutateRaidFrames() then
+	if not canMutateRaidFrames(frame) then
 		M._pendingPrivateAuraRefresh = true
 		return
 	end

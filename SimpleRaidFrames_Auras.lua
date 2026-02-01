@@ -171,7 +171,7 @@ local AURA_LAYOUTS = {
 
 local function applyAuraGapLayout(frame)
 	if not frame or not M.DB or not AnchorUtil or not GridLayoutMixin then return end
-	if not canMutateRaidFrames() then
+	if not canMutateRaidFrames(frame) then
 		M._pendingAuraLayoutRefresh = true
 		return
 	end

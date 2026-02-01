@@ -11,3 +11,13 @@
 Libs/Init.xml
 
 SimpleRaidFrames.lua
+SimpleRaidFrames_Indicators.lua
+SimpleRaidFrames_Names.lua
+SimpleRaidFrames_RoleIcons.lua
+SimpleRaidFrames_Health.lua
+SimpleRaidFrames_Auras.lua
+SimpleRaidFrames_PrivateAuras.lua
+SimpleRaidFrames_Party.lua
+SimpleRaidFrames_Hooks.lua
+SimpleRaidFrames_Settings.lua
+SimpleRaidFrames_Main.lua
