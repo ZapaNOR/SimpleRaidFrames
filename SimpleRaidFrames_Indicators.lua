@@ -119,27 +119,36 @@ local function updateOfflineIndicator(frame)
 
 	local isOffline = false
 	local ok, connected = pcall(UnitIsConnected, frame.unit)
-	if ok and connected == false then
+	if ok and not connected then
 		isOffline = true
 	end
 	local isAfk = false
-	local okAfk, afk = pcall(UnitIsAFK, frame.unit)
-	if okAfk and afk == true then
-		isAfk = true
-	end
 	local isDnd = false
-	local okDnd, dnd = pcall(UnitIsDND, frame.unit)
-	if okDnd and dnd == true then
-		isDnd = true
+	local chatLockedDown = false
+	if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
+		local okChat, locked = pcall(C_ChatInfo.InChatMessagingLockdown)
+		if okChat and locked then
+			chatLockedDown = true
+		end
+	end
+	if not chatLockedDown then
+		local okAfk, afk = pcall(UnitIsAFK, frame.unit)
+		if okAfk and afk then
+			isAfk = true
+		end
+		local okDnd, dnd = pcall(UnitIsDND, frame.unit)
+		if okDnd and dnd then
+			isDnd = true
+		end
 	end
 	local isGhost = false
 	local okGhost, ghost = pcall(UnitIsGhost, frame.unit)
-	if okGhost and ghost == true then
+	if okGhost and ghost then
 		isGhost = true
 	end
 	local isDead = false
 	local okDead, deadOrGhost = pcall(UnitIsDeadOrGhost, frame.unit)
-	if okDead and deadOrGhost == true and not isGhost then
+	if okDead and deadOrGhost and not isGhost then
 		isDead = true
 	end
 

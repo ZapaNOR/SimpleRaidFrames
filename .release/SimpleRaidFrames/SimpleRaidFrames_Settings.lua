@@ -65,6 +65,29 @@ local function createSettingsWindow()
 		hidePartySelf:SetFullWidth(true)
 		container:AddChild(hidePartySelf)
 
+		local showPartySolo = AceGUI:Create("CheckBox")
+		showPartySolo:SetLabel("Show Party Frame When Solo")
+		showPartySolo:SetValue(M.DB.showPartyWhenSolo)
+		showPartySolo:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.showPartyWhenSolo = val and true or false
+			M:ApplySettings()
+		end)
+		showPartySolo:SetFullWidth(true)
+		container:AddChild(showPartySolo)
+
+		local partyWidth = AceGUI:Create("Slider")
+		partyWidth:SetLabel("Party Frame Width (Raid Style, 0 = default)")
+		partyWidth:SetSliderValues(0, 500, 2)
+		partyWidth:SetValue(M.DB.partyFrameWidthOverride or 0)
+		partyWidth:SetCallback("OnValueChanged", function(_, _, val)
+			local width = math.floor(tonumber(val) or 0)
+			if width < 0 then width = 0 end
+			M.DB.partyFrameWidthOverride = width
+			M:ApplySettings()
+		end)
+		partyWidth:SetFullWidth(true)
+		container:AddChild(partyWidth)
+
 		local maxLen = AceGUI:Create("Slider")
 		maxLen:SetLabel("Max Name Length (0 = unlimited)")
 		maxLen:SetSliderValues(0, 20, 1)
@@ -487,9 +510,9 @@ local function createSettingsWindow()
 	end
 
 	local frame = AceGUI:Create("Frame")
-	frame:SetTitle("SimpleRaidFrames")
+	frame:SetTitle("Simple Raid Frames")
 	frame:SetWidth(560)
-	frame:SetHeight(420)
+	frame:SetHeight(480)
 	frame:SetLayout("Fill")
 	frame:SetCallback("OnClose", function(widget)
 		AceGUI:Release(widget)
@@ -506,6 +529,7 @@ local function createSettingsWindow()
 		{ text = "Private Auras", value = "private_auras" },
 	})
 	tabs:SetLayout("List")
+	tabs:SetTitle(" ") -- add a bit of top padding so tabs don't overlap the close button
 	tabs:SetCallback("OnGroupSelected", function(container, _, group)
 		container:ReleaseChildren()
 		if group == "role" then

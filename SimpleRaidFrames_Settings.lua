@@ -75,19 +75,6 @@ local function createSettingsWindow()
 		showPartySolo:SetFullWidth(true)
 		container:AddChild(showPartySolo)
 
-		local partyWidth = AceGUI:Create("Slider")
-		partyWidth:SetLabel("Party Frame Width (Raid Style, 0 = default)")
-		partyWidth:SetSliderValues(0, 500, 2)
-		partyWidth:SetValue(M.DB.partyFrameWidthOverride or 0)
-		partyWidth:SetCallback("OnValueChanged", function(_, _, val)
-			local width = math.floor(tonumber(val) or 0)
-			if width < 0 then width = 0 end
-			M.DB.partyFrameWidthOverride = width
-			M:ApplySettings()
-		end)
-		partyWidth:SetFullWidth(true)
-		container:AddChild(partyWidth)
-
 		local maxLen = AceGUI:Create("Slider")
 		maxLen:SetLabel("Max Name Length (0 = unlimited)")
 		maxLen:SetSliderValues(0, 20, 1)

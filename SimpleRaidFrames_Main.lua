@@ -78,12 +78,6 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 				M:RefreshPartyPlayerVisibility()
 			end
 		end
-		if M._pendingPartyFrameSizeRefresh then
-			M._pendingPartyFrameSizeRefresh = false
-			if M.RefreshPartyFrameWidth then
-				M:RefreshPartyFrameWidth()
-			end
-		end
 		if M._pendingPartySoloVisibilityRefresh then
 			M._pendingPartySoloVisibilityRefresh = false
 			if M.RefreshPartySoloVisibility then

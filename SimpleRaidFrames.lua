@@ -45,7 +45,6 @@ local DEFAULTS = {
 	hideRealmNames = true,
 	hidePlayerInParty = false,
 	showPartyWhenSolo = false,
-	partyFrameWidthOverride = 0,
 	maxNameLength = 4,
 	nameFont = "Expressway",
 	nameFontSize = 14,
@@ -101,7 +100,6 @@ M._pendingPrivateAuraRefresh = false
 M._pendingAuraLayoutRefresh = false
 M._pendingRoleIconRefresh = false
 M._pendingPartyVisibilityRefresh = false
-M._pendingPartyFrameSizeRefresh = false
 M._pendingPartySoloVisibilityRefresh = false
 
 local function ensureDefaults()
@@ -115,13 +113,11 @@ local function ensureDefaults()
 	if SimpleRaidFramesDB.showPartyWhenSolo == nil then
 		SimpleRaidFramesDB.showPartyWhenSolo = DEFAULTS.showPartyWhenSolo
 	end
-	if SimpleRaidFramesDB.partyFrameWidthOverride == nil then
-		SimpleRaidFramesDB.partyFrameWidthOverride = DEFAULTS.partyFrameWidthOverride
+	if SimpleRaidFramesDB.partyFrameWidthOverride ~= nil then
+		SimpleRaidFramesDB.partyFrameWidthOverride = nil
 	end
-	SimpleRaidFramesDB.partyFrameWidthOverride = tonumber(SimpleRaidFramesDB.partyFrameWidthOverride)
-		or DEFAULTS.partyFrameWidthOverride
 	if SimpleRaidFramesDB.partyFrameWidthOriginal ~= nil then
-		SimpleRaidFramesDB.partyFrameWidthOriginal = tonumber(SimpleRaidFramesDB.partyFrameWidthOriginal)
+		SimpleRaidFramesDB.partyFrameWidthOriginal = nil
 	end
 	if SimpleRaidFramesDB.maxNameLength == nil then
 		SimpleRaidFramesDB.maxNameLength = DEFAULTS.maxNameLength

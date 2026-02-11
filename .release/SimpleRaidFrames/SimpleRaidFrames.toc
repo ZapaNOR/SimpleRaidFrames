@@ -2,6 +2,7 @@
 ## Title: Simple Raid Frames
 ## Notes: Some simple settings for the native raid frames.
 ## Category-enUS:  |cFF9CDF95Zapa|r Development
+## IconTexture: Interface\AddOns\SimpleRaidFrames\media\srf-logo.png
 ## Author: Zapa
 ## Version: 1.0
 ## SavedVariables: SimpleRaidFramesDB

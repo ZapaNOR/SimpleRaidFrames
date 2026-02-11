@@ -57,9 +57,6 @@ function M:ApplySettings()
 	if self.RefreshPartyPlayerVisibility then
 		self:RefreshPartyPlayerVisibility()
 	end
-	if self.RefreshPartyFrameWidth then
-		self:RefreshPartyFrameWidth()
-	end
 	if self.RefreshPartySoloVisibility then
 		self:RefreshPartySoloVisibility()
 	end
@@ -129,32 +126,8 @@ function M:EnsureHooks()
 			if M and M.RefreshPartyPlayerVisibility then
 				M:RefreshPartyPlayerVisibility(frame)
 			end
-			if M and M.RefreshPartyFrameWidth then
-				M:RefreshPartyFrameWidth(frame)
-			end
 		end)
 		M._partyVisibilityHooked = true
-	end
-	if type(DefaultCompactUnitFrameSetup) == "function" and not M._partyWidthHooked then
-		hooksecurefunc("DefaultCompactUnitFrameSetup", function(frame)
-			if M and M.HidePartyPlayerFrameIfNeeded then
-				M:HidePartyPlayerFrameIfNeeded(frame)
-			end
-			if M and M.ApplyPartyFrameWidth then
-				M:ApplyPartyFrameWidth(frame)
-			end
-		end)
-		if type(DefaultCompactMiniFrameSetup) == "function" then
-			hooksecurefunc("DefaultCompactMiniFrameSetup", function(frame)
-				if M and M.HidePartyPlayerFrameIfNeeded then
-					M:HidePartyPlayerFrameIfNeeded(frame)
-				end
-				if M and M.ApplyPartyFrameWidth then
-					M:ApplyPartyFrameWidth(frame)
-				end
-			end)
-		end
-		M._partyWidthHooked = true
 	end
 	if type(CompactPartyFrame_Generate) == "function" and not M._partyHeaderHooked then
 		hooksecurefunc("CompactPartyFrame_Generate", function(frame)
@@ -183,9 +156,6 @@ function M:EnsureHooks()
 	M:RefreshRaidAggro()
 	if M.RefreshPartyPlayerVisibility then
 		M:RefreshPartyPlayerVisibility()
-	end
-	if M.RefreshPartyFrameWidth then
-		M:RefreshPartyFrameWidth()
 	end
 	if M.RefreshPartySoloVisibility then
 		M:RefreshPartySoloVisibility()

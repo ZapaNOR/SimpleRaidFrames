@@ -9,7 +9,7 @@ local function applyRoleIconLayout(frame)
 	if not isFrameInRaidContainer(frame) then return end
 	if not M.DB then return end
 	if frame.optionTable and frame.optionTable.displayRoleIcon == false then return end
-	if not canMutateRaidFrames() then
+	if not canMutateRaidFrames(frame) then
 		M._pendingRoleIconRefresh = true
 		return
 	end
@@ -73,6 +73,16 @@ local function applyRoleIconStyle(frame)
 			role = GetUnitFrameRole(frame)
 		else
 			role = UnitGroupRolesAssigned(unit)
+		end
+		if (not role or role == "NONE") and unit == "player" then
+			if (IsInGroup and not IsInGroup()) and (IsInRaid and not IsInRaid()) then
+				if type(GetSpecializationRole) == "function" and type(GetSpecialization) == "function" then
+					local specIndex = GetSpecialization()
+					if specIndex then
+						role = GetSpecializationRole(specIndex)
+					end
+				end
+			end
 		end
 		if role and role ~= "NONE" then
 			local icon

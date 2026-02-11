@@ -44,6 +44,8 @@ end
 local DEFAULTS = {
 	hideRealmNames = true,
 	hidePlayerInParty = false,
+	showPartyWhenSolo = false,
+	partyFrameWidthOverride = 0,
 	maxNameLength = 4,
 	nameFont = "Expressway",
 	nameFontSize = 14,
@@ -99,6 +101,8 @@ M._pendingPrivateAuraRefresh = false
 M._pendingAuraLayoutRefresh = false
 M._pendingRoleIconRefresh = false
 M._pendingPartyVisibilityRefresh = false
+M._pendingPartyFrameSizeRefresh = false
+M._pendingPartySoloVisibilityRefresh = false
 
 local function ensureDefaults()
 	SimpleRaidFramesDB = SimpleRaidFramesDB or {}
@@ -107,6 +111,17 @@ local function ensureDefaults()
 	end
 	if SimpleRaidFramesDB.hidePlayerInParty == nil then
 		SimpleRaidFramesDB.hidePlayerInParty = DEFAULTS.hidePlayerInParty
+	end
+	if SimpleRaidFramesDB.showPartyWhenSolo == nil then
+		SimpleRaidFramesDB.showPartyWhenSolo = DEFAULTS.showPartyWhenSolo
+	end
+	if SimpleRaidFramesDB.partyFrameWidthOverride == nil then
+		SimpleRaidFramesDB.partyFrameWidthOverride = DEFAULTS.partyFrameWidthOverride
+	end
+	SimpleRaidFramesDB.partyFrameWidthOverride = tonumber(SimpleRaidFramesDB.partyFrameWidthOverride)
+		or DEFAULTS.partyFrameWidthOverride
+	if SimpleRaidFramesDB.partyFrameWidthOriginal ~= nil then
+		SimpleRaidFramesDB.partyFrameWidthOriginal = tonumber(SimpleRaidFramesDB.partyFrameWidthOriginal)
 	end
 	if SimpleRaidFramesDB.maxNameLength == nil then
 		SimpleRaidFramesDB.maxNameLength = DEFAULTS.maxNameLength
@@ -292,6 +307,27 @@ local function ensureDefaults()
 	M.DB = SimpleRaidFramesDB
 end
 
+local function isFrameInPreview(frame)
+	if not frame then return false end
+	local previewFrame = _G and _G.RaidFrameSettingsPreviewFrame
+	if not previewFrame then return false end
+	local parent = frame
+	while parent do
+		if parent == previewFrame then
+			return true
+		end
+		if not parent.GetParent then
+			break
+		end
+		local ok, nextParent = pcall(parent.GetParent, parent)
+		if not ok then
+			break
+		end
+		parent = nextParent
+	end
+	return false
+end
+
 local function isFrameInRaidContainer(frame)
 	if not frame then return false end
 	local unit = frame.displayedUnit or frame.unit
@@ -299,6 +335,9 @@ local function isFrameInRaidContainer(frame)
 		if unit ~= "player" and not unit:find("^raid") and not unit:find("^party") then
 			return false
 		end
+	end
+	if isFrameInPreview(frame) then
+		return true
 	end
 	local parent = frame
 	while parent do
@@ -321,12 +360,15 @@ local function isInCombatLockdown()
 	return InCombatLockdown and InCombatLockdown()
 end
 
-local function canMutateRaidFrames()
-	if isInCombatLockdown() then
+local function canMutateRaidFrames(frame, allowCombat)
+	if not allowCombat and isInCombatLockdown() then
 		return false
 	end
 	if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive then
 		if EditModeManagerFrame:IsEditModeActive() then
+			if frame and isFrameInPreview(frame) then
+				return true
+			end
 			return false
 		end
 	end
