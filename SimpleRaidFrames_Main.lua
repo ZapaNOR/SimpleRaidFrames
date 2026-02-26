@@ -31,6 +31,29 @@ local function printSlashHelp()
 	print("|cFF9CDF95Simple|rRaidFrames: '|cFF9CDF95/srf|r' for in-game configuration.")
 end
 
+local function getCurrentPatchKey()
+	local version, _, _, interfaceVersion = GetBuildInfo()
+	if type(version) == "string" and version ~= "" then
+		return version
+	end
+	if type(interfaceVersion) == "number" then
+		return tostring(interfaceVersion)
+	end
+	return "unknown"
+end
+
+local function maybePrintSlashHelp()
+	if type(SimpleRaidFramesDB) ~= "table" then
+		printSlashHelp()
+		return
+	end
+	local patchKey = getCurrentPatchKey()
+	if SimpleRaidFramesDB.lastSlashHelpPatch ~= patchKey then
+		SimpleRaidFramesDB.lastSlashHelpPatch = patchKey
+		printSlashHelp()
+	end
+end
+
 SLASH_SIMPLERAIDFRAMES1 = "/srf"
 SLASH_SIMPLERAIDFRAMES2 = "/simpleraidframes"
 SlashCmdList["SIMPLERAIDFRAMES"] = function(msg)
@@ -58,7 +81,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "PLAYER_LOGIN" then
 		M.EnsureDefaults()
 		M:EnsureHooks()
-		printSlashHelp()
+		maybePrintSlashHelp()
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		if M._pendingPrivateAuraRefresh then
 			M._pendingPrivateAuraRefresh = false
