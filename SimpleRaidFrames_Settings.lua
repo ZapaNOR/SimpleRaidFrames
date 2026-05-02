@@ -45,15 +45,15 @@ local function createSettingsWindow()
 	local function buildNameTab(container)
 		container:SetLayout("List")
 
-		local hide = AceGUI:Create("CheckBox")
-		hide:SetLabel("Hide Realm Names")
-		hide:SetValue(M.DB.hideRealmNames)
-		hide:SetCallback("OnValueChanged", function(_, _, val)
-			M.DB.hideRealmNames = val and true or false
+		local hideTooltips = AceGUI:Create("CheckBox")
+		hideTooltips:SetLabel("Hide Raid Frame Unit Tooltips")
+		hideTooltips:SetValue(M.DB.hideRaidFrameTooltips)
+		hideTooltips:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.hideRaidFrameTooltips = val and true or false
 			M:ApplySettings()
 		end)
-		hide:SetFullWidth(true)
-		container:AddChild(hide)
+		hideTooltips:SetFullWidth(true)
+		container:AddChild(hideTooltips)
 
 		local hidePartySelf = AceGUI:Create("CheckBox")
 		hidePartySelf:SetLabel("Hide Player Frame in Party (5-man)")
@@ -144,96 +144,377 @@ local function createSettingsWindow()
 		container:AddChild(classColor)
 	end
 
-	local function buildAurasTab(container)
+	local function buildAuraBarsTab(container)
 		container:SetLayout("List")
 
-		local enable = AceGUI:Create("CheckBox")
-		enable:SetLabel("Enable Cooldown Text")
-		enable:SetValue(M.DB.auraCooldownText)
-		enable:SetCallback("OnValueChanged", function(_, _, val)
-			M.DB.auraCooldownText = val and true or false
+		local function refresh()
 			container:ReleaseChildren()
-			buildAurasTab(container)
+			buildAuraBarsTab(container)
+		end
+
+		local enable = AceGUI:Create("CheckBox")
+		enable:SetLabel("Show Buffs/HoTs as Bars (replaces native buff icons)")
+		enable:SetValue(M.DB.auraBarsEnabled)
+		enable:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsEnabled = val and true or false
 			M:ApplySettings()
+			refresh()
 		end)
 		enable:SetFullWidth(true)
 		container:AddChild(enable)
 
-		local gap = AceGUI:Create("Slider")
-		gap:SetLabel("Aura Gap")
-		gap:SetSliderValues(-10, 20, 1)
-		gap:SetValue(M.DB.auraGap or 0)
-		gap:SetCallback("OnValueChanged", function(_, _, val)
-			M.DB.auraGap = math.floor(tonumber(val) or 0)
-			M:ApplySettings()
-		end)
-		gap:SetFullWidth(true)
-		container:AddChild(gap)
-
-		if not M.DB.auraCooldownText then
+		if not M.DB.auraBarsEnabled then
+			local hint = AceGUI:Create("Label")
+			hint:SetFullWidth(true)
+			hint:SetText("Enable to configure bars and tracked auras.")
+			container:AddChild(hint)
 			return
 		end
 
-		local font = AceGUI:Create("LSM30_Font")
-		font:SetLabel("Cooldown Font")
-		if font.SetList then
-			font:SetList(LSM and LSM.HashTable and LSM:HashTable("font") or nil)
-		end
-		font:SetValue(M.DB.auraCooldownFont or DEFAULT_FONT_NAME)
-		font:SetCallback("OnValueChanged", function(_, _, val)
+		local anchorList = {
+			TOPLEFT = "Top Left",
+			TOPRIGHT = "Top Right",
+			BOTTOMLEFT = "Bottom Left",
+			BOTTOMRIGHT = "Bottom Right",
+		}
+		local anchor = AceGUI:Create("Dropdown")
+		anchor:SetLabel("Anchor Corner")
+		anchor:SetList(anchorList)
+		anchor:SetValue(M.DB.auraBarsAnchor or M.DEFAULTS.auraBarsAnchor)
+		anchor:SetCallback("OnValueChanged", function(_, _, val)
 			if not val or val == "" then return end
-			M.DB.auraCooldownFont = val
-			if font.SetValue then
-				font:SetValue(val)
+			M.DB.auraBarsAnchor = val
+			M:ApplySettings()
+		end)
+		anchor:SetFullWidth(true)
+		container:AddChild(anchor)
+
+		local growList = { UP = "Up", DOWN = "Down", LEFT = "Left", RIGHT = "Right" }
+		local grow = AceGUI:Create("Dropdown")
+		grow:SetLabel("Grow Direction")
+		grow:SetList(growList)
+		grow:SetValue(M.DB.auraBarsGrow or M.DEFAULTS.auraBarsGrow)
+		grow:SetCallback("OnValueChanged", function(_, _, val)
+			if not val or val == "" then return end
+			M.DB.auraBarsGrow = val
+			M:ApplySettings()
+		end)
+		grow:SetFullWidth(true)
+		container:AddChild(grow)
+
+		local fillList = { LTR = "Left to Right", RTL = "Right to Left" }
+		local fill = AceGUI:Create("Dropdown")
+		fill:SetLabel("Bar Fill Direction")
+		fill:SetList(fillList)
+		fill:SetValue(M.DB.auraBarsFillDirection or M.DEFAULTS.auraBarsFillDirection)
+		fill:SetCallback("OnValueChanged", function(_, _, val)
+			if not val or val == "" then return end
+			M.DB.auraBarsFillDirection = val
+			M:ApplySettings()
+		end)
+		fill:SetFullWidth(true)
+		container:AddChild(fill)
+
+		local texture = AceGUI:Create("LSM30_Statusbar")
+		texture:SetLabel("Bar Texture")
+		if texture.SetList then
+			texture:SetList(LSM and LSM.HashTable and LSM:HashTable("statusbar") or nil)
+		end
+		texture:SetValue(M.DB.auraBarsTexture or M.DEFAULTS.auraBarsTexture)
+		texture:SetCallback("OnValueChanged", function(_, _, val)
+			if not val or val == "" then return end
+			M.DB.auraBarsTexture = val
+			if texture.SetValue then texture:SetValue(val) end
+			M:ApplySettings()
+		end)
+		texture:SetFullWidth(true)
+		container:AddChild(texture)
+
+		local width = AceGUI:Create("Slider")
+		width:SetLabel("Bar Width")
+		width:SetSliderValues(20, 200, 1)
+		width:SetValue(M.DB.auraBarsWidth or M.DEFAULTS.auraBarsWidth)
+		width:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsWidth = math.floor(tonumber(val) or M.DEFAULTS.auraBarsWidth)
+			M:ApplySettings()
+		end)
+		width:SetFullWidth(true)
+		container:AddChild(width)
+
+		local height = AceGUI:Create("Slider")
+		height:SetLabel("Bar Height")
+		height:SetSliderValues(2, 20, 1)
+		height:SetValue(M.DB.auraBarsHeight or M.DEFAULTS.auraBarsHeight)
+		height:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsHeight = math.floor(tonumber(val) or M.DEFAULTS.auraBarsHeight)
+			M:ApplySettings()
+		end)
+		height:SetFullWidth(true)
+		container:AddChild(height)
+
+		local spacing = AceGUI:Create("Slider")
+		spacing:SetLabel("Bar Spacing")
+		spacing:SetSliderValues(-2, 10, 1)
+		spacing:SetValue(M.DB.auraBarsSpacing or M.DEFAULTS.auraBarsSpacing)
+		spacing:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsSpacing = math.floor(tonumber(val) or M.DEFAULTS.auraBarsSpacing)
+			M:ApplySettings()
+		end)
+		spacing:SetFullWidth(true)
+		container:AddChild(spacing)
+
+		local offsetX = AceGUI:Create("Slider")
+		offsetX:SetLabel("Offset X")
+		offsetX:SetSliderValues(-60, 60, 1)
+		offsetX:SetValue(M.DB.auraBarsOffsetX or 0)
+		offsetX:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsOffsetX = math.floor(tonumber(val) or 0)
+			M:ApplySettings()
+		end)
+		offsetX:SetFullWidth(true)
+		container:AddChild(offsetX)
+
+		local offsetY = AceGUI:Create("Slider")
+		offsetY:SetLabel("Offset Y")
+		offsetY:SetSliderValues(-60, 60, 1)
+		offsetY:SetValue(M.DB.auraBarsOffsetY or 0)
+		offsetY:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsOffsetY = math.floor(tonumber(val) or 0)
+			M:ApplySettings()
+		end)
+		offsetY:SetFullWidth(true)
+		container:AddChild(offsetY)
+
+		local maxBars = AceGUI:Create("Slider")
+		maxBars:SetLabel("Max Bars per Frame")
+		maxBars:SetSliderValues(1, 20, 1)
+		maxBars:SetValue(M.DB.auraBarsMax or M.DEFAULTS.auraBarsMax)
+		maxBars:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsMax = math.floor(tonumber(val) or M.DEFAULTS.auraBarsMax)
+			M:ApplySettings()
+		end)
+		maxBars:SetFullWidth(true)
+		container:AddChild(maxBars)
+
+		local playerOnly = AceGUI:Create("CheckBox")
+		playerOnly:SetLabel("Only show auras I applied")
+		playerOnly:SetValue(M.DB.auraBarsPlayerOnly)
+		playerOnly:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.auraBarsPlayerOnly = val and true or false
+			M:ApplySettings()
+		end)
+		playerOnly:SetFullWidth(true)
+		container:AddChild(playerOnly)
+
+		local defaultColor = AceGUI:Create("ColorPicker")
+		defaultColor:SetLabel("Default Bar Color")
+		if defaultColor.SetHasAlpha then defaultColor:SetHasAlpha(true) end
+		local dc = M.DB.auraBarsDefaultColor or M.DEFAULTS.auraBarsDefaultColor
+		defaultColor:SetColor(dc.r, dc.g, dc.b, dc.a or 1)
+		defaultColor:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+			M.DB.auraBarsDefaultColor = { r = r, g = g, b = b, a = a }
+			M:ApplySettings()
+		end)
+		defaultColor:SetFullWidth(true)
+		container:AddChild(defaultColor)
+
+		local trackedHeading = AceGUI:Create("Heading")
+		trackedHeading:SetText("Tracked Spells")
+		trackedHeading:SetFullWidth(true)
+		container:AddChild(trackedHeading)
+
+		local overrideHint = AceGUI:Create("Label")
+		overrideHint:SetFullWidth(true)
+		overrideHint:SetText("Only spells in this list show as bars. Each color is used for that bar. Pre-seeded with class HoTs from Cell.")
+		container:AddChild(overrideHint)
+
+		local hotDefaults = M.HOT_DEFAULTS or {}
+		local CLASS_ORDER = hotDefaults.CLASS_ORDER or { "OTHER" }
+		local CLASS_LABELS = hotDefaults.CLASS_LABELS or { OTHER = "Other" }
+
+		local function classOf(entry)
+			if entry and M.IsValidHoTClass and M.IsValidHoTClass(entry.class) then
+				return entry.class
 			end
+			if entry and M.ClassForHoTSpellID then
+				return M.ClassForHoTSpellID(tonumber(entry.spellID))
+			end
+			return "OTHER"
+		end
+
+		M.DB.auraBarsList = M.DB.auraBarsList or {}
+		local list = M.DB.auraBarsList
+
+		local grouped = {}
+		for i, entry in ipairs(list) do
+			local class = classOf(entry)
+			grouped[class] = grouped[class] or {}
+			table.insert(grouped[class], { entry = entry, originalIndex = i })
+		end
+
+		local function renderEntryRow(class, entryRef)
+			local entry = entryRef.entry
+			local row = AceGUI:Create("SimpleGroup")
+			row:SetLayout("Flow")
+			row:SetFullWidth(true)
+
+			local name = (M.GetAuraBarSpellName and M.GetAuraBarSpellName(entry.spellID)) or ("Spell " .. tostring(entry.spellID))
+			local label = AceGUI:Create("Label")
+			label:SetText(("|cFFFFFFFF%s|r\n|cFF888888ID %s|r"):format(name, tostring(entry.spellID)))
+			label:SetWidth(220)
+			row:AddChild(label)
+
+			local color = AceGUI:Create("ColorPicker")
+			if color.SetHasAlpha then color:SetHasAlpha(true) end
+			local c = entry.color or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
+			color:SetColor(c.r, c.g, c.b, c.a or 1)
+			color:SetWidth(120)
+			color:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+				entry.color = { r = r, g = g, b = b, a = a }
 			M:ApplySettings()
 		end)
-		font:SetFullWidth(true)
-		container:AddChild(font)
+			row:AddChild(color)
 
-		local fontSize = AceGUI:Create("Slider")
-		fontSize:SetLabel("Cooldown Font Size")
-		fontSize:SetSliderValues(6, 32, 1)
-		fontSize:SetValue(M.DB.auraCooldownFontSize or DEFAULT_FONT_SIZE)
-		fontSize:SetCallback("OnValueChanged", function(_, _, val)
-			setFontSize(val, 6, 32, "auraCooldownFontSize")
-		end)
-		fontSize:SetFullWidth(true)
-		container:AddChild(fontSize)
-
-		local outline = AceGUI:Create("Dropdown")
-		outline:SetLabel("Outline")
-		outline:SetList(outlineList)
-		outline:SetValue(M.DB.auraCooldownFontOutline or "")
-		outline:SetCallback("OnValueChanged", function(_, _, val)
-			M.DB.auraCooldownFontOutline = val
+			local remove = AceGUI:Create("Button")
+			remove:SetText("Remove")
+			remove:SetWidth(90)
+			remove:SetCallback("OnClick", function()
+				for i = #M.DB.auraBarsList, 1, -1 do
+					if M.DB.auraBarsList[i] == entry then
+						table.remove(M.DB.auraBarsList, i)
+						break
+					end
+				end
 			M:ApplySettings()
+				refresh()
 		end)
-		outline:SetFullWidth(true)
-		container:AddChild(outline)
+			row:AddChild(remove)
 
-		local shadow = AceGUI:Create("CheckBox")
-		shadow:SetLabel("Shadow")
-		shadow:SetValue(M.DB.auraCooldownShadow)
-		shadow:SetCallback("OnValueChanged", function(_, _, val)
-			M.DB.auraCooldownShadow = val and true or false
+			container:AddChild(row)
+		end
+
+		for _, class in ipairs(CLASS_ORDER) do
+			local entries = grouped[class]
+			if entries and #entries > 0 then
+				local section = AceGUI:Create("Heading")
+				section:SetText(CLASS_LABELS[class] or class)
+				section:SetFullWidth(true)
+				container:AddChild(section)
+				for _, entryRef in ipairs(entries) do
+					renderEntryRow(class, entryRef)
+				end
+			end
+		end
+
+		local addHeading = AceGUI:Create("Heading")
+		addHeading:SetText("Add Spell")
+		addHeading:SetFullWidth(true)
+		container:AddChild(addHeading)
+
+		local addRow = AceGUI:Create("SimpleGroup")
+		addRow:SetLayout("Flow")
+		addRow:SetFullWidth(true)
+
+		local classDropdownList = {}
+		for _, class in ipairs(CLASS_ORDER) do
+			classDropdownList[class] = CLASS_LABELS[class] or class
+		end
+
+		local _, defaultClass = UnitClass and UnitClass("player")
+		if not (defaultClass and CLASS_LABELS[defaultClass]) then
+			defaultClass = "OTHER"
+		end
+
+		local classDropdown = AceGUI:Create("Dropdown")
+		classDropdown:SetLabel("Class")
+		classDropdown:SetList(classDropdownList, CLASS_ORDER)
+		classDropdown:SetValue(defaultClass)
+		classDropdown:SetWidth(160)
+		addRow:AddChild(classDropdown)
+
+		local spellInput = AceGUI:Create("EditBox")
+		spellInput:SetLabel("Spell ID or Name")
+		spellInput:SetWidth(220)
+		addRow:AddChild(spellInput)
+
+		local addBtn = AceGUI:Create("Button")
+		addBtn:SetText("Add")
+		addBtn:SetWidth(80)
+		addBtn:SetCallback("OnClick", function()
+			local raw = spellInput:GetText()
+			if not raw or raw:match("^%s*$") then return end
+			local spellID
+			if M.ResolveSpellInput then
+				_, spellID = M.ResolveSpellInput(raw)
+			else
+				spellID = tonumber(raw)
+			end
+			if not spellID then
+				print("|cFF9CDF95SimpleRaidFrames:|r Could not resolve spell '" .. tostring(raw) .. "'. Use the exact spell name or numeric ID.")
+				return
+			end
+			M.DB.auraBarsList = M.DB.auraBarsList or {}
+			for _, existing in ipairs(M.DB.auraBarsList) do
+				if tonumber(existing.spellID) == spellID then
+					refresh()
+					return
+				end
+			end
+			local class = classDropdown:GetValue() or defaultClass
+			if not (M.IsValidHoTClass and M.IsValidHoTClass(class)) then
+				class = "OTHER"
+			end
+			local seedColor = M.GetHoTClassColor and M.GetHoTClassColor(class)
+				or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
+			table.insert(M.DB.auraBarsList, {
+				spellID = spellID,
+				class = class,
+				color = { r = seedColor.r, g = seedColor.g, b = seedColor.b, a = seedColor.a or 1 },
+			})
 			M:ApplySettings()
+			refresh()
 		end)
-		shadow:SetFullWidth(true)
-		container:AddChild(shadow)
-	end
+		addRow:AddChild(addBtn)
 
-	local function buildPrivateAurasTab(container)
-		container:SetLayout("List")
+		container:AddChild(addRow)
 
-		local info = AceGUI:Create("Label")
-		info:SetFullWidth(true)
-		info:SetText("Private auras are managed automatically.")
-		container:AddChild(info)
+		local restoreBtn = AceGUI:Create("Button")
+		restoreBtn:SetText("Restore Class Defaults")
+		restoreBtn:SetWidth(220)
+		restoreBtn:SetCallback("OnClick", function()
+			if M.RestoreAuraBarsClassDefaults then
+				M:RestoreAuraBarsClassDefaults()
+			M:ApplySettings()
+				refresh()
+			end
+		end)
+		container:AddChild(restoreBtn)
 	end
 
 	local function buildRoleIconTab(container)
 		container:SetLayout("List")
+
+		local style = AceGUI:Create("Dropdown")
+		style:SetLabel("Icon Style")
+		style:SetList({ pixels = "Pixels", blizzard = "Blizzard" }, { "pixels", "blizzard" })
+		style:SetValue(M.DB.roleIconStyle or "pixels")
+		style:SetCallback("OnValueChanged", function(_, _, val)
+			if val ~= "pixels" and val ~= "blizzard" then return end
+			M.DB.roleIconStyle = val
+			M:ApplySettings()
+		end)
+		style:SetFullWidth(true)
+		container:AddChild(style)
+
+		local classColor = AceGUI:Create("CheckBox")
+		classColor:SetLabel("Color Role Icons by Class Color (Pixels only)")
+		classColor:SetValue(M.DB.roleIconClassColor)
+		classColor:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.roleIconClassColor = val and true or false
+			M:ApplySettings()
+		end)
+		classColor:SetFullWidth(true)
+		container:AddChild(classColor)
 
 		local size = AceGUI:Create("Slider")
 		size:SetLabel("Icon Size (0 = default)")
@@ -333,6 +614,17 @@ local function createSettingsWindow()
 		leaderOffsetY:SetFullWidth(true)
 		container:AddChild(leaderOffsetY)
 
+		local leaderClassColor = AceGUI:Create("CheckBox")
+		leaderClassColor:SetLabel("Color Leader/Assist Icon by Class Color")
+		leaderClassColor:SetValue(M.DB.leaderAssistClassColor)
+		leaderClassColor:SetDisabled(not M.DB.leaderAssistEnabled)
+		leaderClassColor:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.leaderAssistClassColor = val and true or false
+			M:ApplySettings()
+		end)
+		leaderClassColor:SetFullWidth(true)
+		container:AddChild(leaderClassColor)
+
 		local statusHeading = AceGUI:Create("Heading")
 		statusHeading:SetText("Status Icons")
 		statusHeading:SetFullWidth(true)
@@ -386,6 +678,17 @@ local function createSettingsWindow()
 		end)
 		statusOffsetY:SetFullWidth(true)
 		container:AddChild(statusOffsetY)
+
+		local statusClassColor = AceGUI:Create("CheckBox")
+		statusClassColor:SetLabel("Color Status Icons by Class Color")
+		statusClassColor:SetValue(M.DB.statusIndicatorClassColor)
+		statusClassColor:SetDisabled(not M.DB.statusIndicatorsEnabled)
+		statusClassColor:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.statusIndicatorClassColor = val and true or false
+			M:ApplySettings()
+		end)
+		statusClassColor:SetFullWidth(true)
+		container:AddChild(statusClassColor)
 	end
 
 	local function buildHealthTab(container)
@@ -408,18 +711,54 @@ local function createSettingsWindow()
 		fgEnable:SetFullWidth(true)
 		container:AddChild(fgEnable)
 
+		local fgClassColor = AceGUI:Create("CheckBox")
+		fgClassColor:SetLabel("Use Dark Class Color")
+		fgClassColor:SetValue(M.DB.healthColorClassColor)
+		fgClassColor:SetDisabled(not M.DB.healthColorEnabled)
+		fgClassColor:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.healthColorClassColor = val and true or false
+			container:ReleaseChildren()
+			buildHealthTab(container)
+			M:ApplySettings()
+		end)
+		fgClassColor:SetFullWidth(true)
+		container:AddChild(fgClassColor)
+
+		local fgClassDarkness = AceGUI:Create("Slider")
+		fgClassDarkness:SetLabel("Class Color Darkness")
+		fgClassDarkness:SetSliderValues(0, 1, 0.05)
+		fgClassDarkness:SetIsPercent(true)
+		fgClassDarkness:SetValue(M.DB.healthColorClassColorDarkness or M.DEFAULTS.healthColorClassColorDarkness)
+		fgClassDarkness:SetDisabled(not M.DB.healthColorEnabled or not M.DB.healthColorClassColor)
+		fgClassDarkness:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.healthColorClassColorDarkness = tonumber(val) or M.DEFAULTS.healthColorClassColorDarkness
+			M:ApplySettings()
+		end)
+		fgClassDarkness:SetFullWidth(true)
+		container:AddChild(fgClassDarkness)
+
 		local fg = AceGUI:Create("ColorPicker")
 		fg:SetLabel("Health Bar Color")
 		if fg.SetHasAlpha then fg:SetHasAlpha(true) end
 		local fgColor = M.DB.healthColor or M.DEFAULTS.healthColor
 		fg:SetColor(fgColor.r, fgColor.g, fgColor.b, fgColor.a or 1)
-		fg:SetDisabled(not M.DB.healthColorEnabled)
+		fg:SetDisabled(not M.DB.healthColorEnabled or M.DB.healthColorClassColor)
 		fg:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
 			M.DB.healthColor = { r = r, g = g, b = b, a = a }
 			M:ApplySettings()
 		end)
 		fg:SetFullWidth(true)
 		container:AddChild(fg)
+
+		local darkBorders = AceGUI:Create("CheckBox")
+		darkBorders:SetLabel("Dark Borders")
+		darkBorders:SetValue(M.DB.healthBlackBorders)
+		darkBorders:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.healthBlackBorders = val and true or false
+			M:ApplySettings()
+		end)
+		darkBorders:SetFullWidth(true)
+		container:AddChild(darkBorders)
 
 		local bgHeading = AceGUI:Create("Heading")
 		bgHeading:SetText("Background")
@@ -493,13 +832,12 @@ local function createSettingsWindow()
 		end)
 		deadBg:SetFullWidth(true)
 		container:AddChild(deadBg)
-
 	end
 
 	local frame = AceGUI:Create("Frame")
 	frame:SetTitle("Simple Raid Frames")
-	frame:SetWidth(560)
-	frame:SetHeight(480)
+	frame:SetWidth(620)
+	frame:SetHeight(560)
 	frame:SetLayout("Fill")
 	frame:SetCallback("OnClose", function(widget)
 		AceGUI:Release(widget)
@@ -511,34 +849,70 @@ local function createSettingsWindow()
 		{ text = "Name", value = "name" },
 		{ text = "Role Icon", value = "role" },
 		{ text = "Health", value = "health" },
-		{ text = "Auras", value = "auras" },
+		{ text = "Aura Bars", value = "aura_bars" },
 		{ text = "Indicators", value = "indicators" },
-		{ text = "Private Auras", value = "private_auras" },
 	})
 	tabs:SetLayout("List")
 	tabs:SetTitle(" ") -- add a bit of top padding so tabs don't overlap the close button
 	tabs:SetCallback("OnGroupSelected", function(container, _, group)
 		container:ReleaseChildren()
+		container:SetLayout("Fill")
+		local scroll = AceGUI:Create("ScrollFrame")
+		scroll:SetLayout("List")
+		scroll:SetFullWidth(true)
+		scroll:SetFullHeight(true)
+		container:AddChild(scroll)
 		if group == "role" then
-			buildRoleIconTab(container)
+			buildRoleIconTab(scroll)
 		elseif group == "health" then
-			buildHealthTab(container)
-		elseif group == "auras" then
-			buildAurasTab(container)
+			buildHealthTab(scroll)
+		elseif group == "aura_bars" then
+			buildAuraBarsTab(scroll)
 		elseif group == "indicators" then
-			buildIndicatorsTab(container)
-		elseif group == "private_auras" then
-			buildPrivateAurasTab(container)
+			buildIndicatorsTab(scroll)
 		else
-			buildNameTab(container)
+			buildNameTab(scroll)
 		end
 	end)
 	frame:AddChild(tabs)
 	tabs:SelectTab("name")
 
+	if frame.frame and frame.closebutton then
+		local resetBtn = CreateFrame("Button", nil, frame.frame, "UIPanelButtonTemplate")
+		resetBtn:SetSize(140, 22)
+		resetBtn:SetPoint("RIGHT", frame.closebutton, "LEFT", -8, 0)
+		resetBtn:SetText("Reset All Settings")
+		resetBtn:SetScript("OnClick", function()
+			StaticPopup_Show("SRF_RESET_CONFIRM")
+		end)
+		frame._srfResetButton = resetBtn
+	end
+
 	M._settingsFrame = frame
 	return frame
 end
+
+StaticPopupDialogs = StaticPopupDialogs or {}
+StaticPopupDialogs["SRF_RESET_CONFIRM"] = {
+	text = "Reset all SimpleRaidFrames settings to defaults?",
+	button1 = "Reset",
+	button2 = "Cancel",
+	OnAccept = function()
+		SimpleRaidFramesDB = {}
+		M.EnsureDefaults()
+		M:ApplySettings()
+		local existing = M._settingsFrame
+		M._settingsFrame = nil
+		if existing and AceGUI then
+			AceGUI:Release(existing)
+		end
+		M:OpenSettings()
+	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+	preferredIndex = 3,
+}
 
 function M:OpenSettings()
 	local frame = createSettingsWindow()
@@ -550,5 +924,3 @@ function M:OpenSettings()
 		frame.frame:Raise()
 	end
 end
-
-M.CreateSettingsWindow = createSettingsWindow

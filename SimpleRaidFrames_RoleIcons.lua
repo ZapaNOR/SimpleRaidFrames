@@ -3,6 +3,12 @@ local M = _G[ADDON_NAME]
 
 local isFrameInRaidContainer = M.IsFrameInRaidContainer
 local canMutateRaidFrames = M.CanMutateRaidFrames
+local getFrameUnit = M.GetFrameUnit
+local isSecretValue = M.IsSecretValue or issecretvalue or function() return false end
+
+local function isTrue(value)
+	return not isSecretValue(value) and value == true
+end
 
 local function applyRoleIconLayout(frame)
 	if not frame or not frame.roleIcon then return end
@@ -49,67 +55,110 @@ local function applyRoleIconLayout(frame)
 	end
 end
 
+local ROLE_ICON_BASE = "Interface\\AddOns\\SimpleRaidFrames\\media\\roles\\pixels\\"
+
+local BLIZZARD_ROLE_ATLASES = {
+	TANK    = { "roleicon-tiny-tank", "groupfinder-icon-role-large-tank" },
+	HEALER  = { "roleicon-tiny-healer", "groupfinder-icon-role-large-heal" },
+	DAMAGER = { "roleicon-tiny-dps", "groupfinder-icon-role-large-dps" },
+}
+
+local function applyBlizzardRoleAtlas(tex, role)
+	local candidates = BLIZZARD_ROLE_ATLASES[role]
+	if not tex or not candidates or not tex.SetAtlas then return false end
+	for _, atlas in ipairs(candidates) do
+		local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+		if info then
+			tex:SetAtlas(atlas)
+			return true
+		end
+	end
+	return false
+end
+
+local function getRoleIconColor(unit, style)
+	if style ~= "pixels" then return 1, 1, 1 end
+	if not unit or not M.DB or not M.DB.roleIconClassColor then return 1, 1, 1 end
+	local okPlayer, isPlayer = pcall(UnitIsPlayer, unit)
+	if not okPlayer or isSecretValue(isPlayer) or not isPlayer then return 1, 1, 1 end
+	local okClass, _, class = pcall(UnitClass, unit)
+	if not okClass or isSecretValue(class) or not class then return 1, 1, 1 end
+	local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+	if not color then return 1, 1, 1 end
+	return color.r, color.g, color.b
+end
+
 local function applyRoleIconStyle(frame)
 	if not M.DB or not frame or not frame.roleIcon or not isFrameInRaidContainer(frame) then return end
-	local unit = frame.unit or frame.displayedUnit
+	local unit = getFrameUnit(frame)
 	if not unit then return end
 	if frame.optionTable and frame.optionTable.displayRoleIcon == false then return end
 
-	local roleStyle = M.DB.roleIconStyle
-	if roleStyle == "flat" or roleStyle == "pixels" then
-		if UnitInVehicle(unit) and UnitHasVehicleUI(unit) then
+	local okVehicle, inVehicle = pcall(UnitInVehicle, unit)
+	local okVehicleUI, hasVehicleUI = pcall(UnitHasVehicleUI, unit)
+	if okVehicle and okVehicleUI and isTrue(inVehicle) and isTrue(hasVehicleUI) then
+		applyRoleIconLayout(frame)
+		return
+	end
+	if frame.optionTable and frame.optionTable.displayRaidRoleIcon and type(GetUnitFrameRaidRole) == "function" then
+		local okRaidRole, raidRole = pcall(GetUnitFrameRaidRole, frame)
+		if okRaidRole and not isSecretValue(raidRole) and raidRole then
 			applyRoleIconLayout(frame)
 			return
 		end
-		if frame.optionTable and frame.optionTable.displayRaidRoleIcon and type(GetUnitFrameRaidRole) == "function" then
-			local raidRole = GetUnitFrameRaidRole(frame)
-			if raidRole then
-				applyRoleIconLayout(frame)
-				return
-			end
+	end
+	local role
+	if type(GetUnitFrameRole) == "function" then
+		local okRole, frameRole = pcall(GetUnitFrameRole, frame)
+		if okRole and not isSecretValue(frameRole) then
+			role = frameRole
 		end
-		local role
-		if type(GetUnitFrameRole) == "function" then
-			role = GetUnitFrameRole(frame)
-		else
-			role = UnitGroupRolesAssigned(unit)
+	else
+		local okRole, assignedRole = pcall(UnitGroupRolesAssigned, unit)
+		if okRole and not isSecretValue(assignedRole) then
+			role = assignedRole
 		end
-		if (not role or role == "NONE") and unit == "player" then
-			if (IsInGroup and not IsInGroup()) and (IsInRaid and not IsInRaid()) then
-				if type(GetSpecializationRole) == "function" and type(GetSpecialization) == "function" then
-					local specIndex = GetSpecialization()
-					if specIndex then
-						role = GetSpecializationRole(specIndex)
-					end
+	end
+	if (not role or role == "NONE") and unit == "player" then
+		if type(GetSpecializationRole) == "function" and type(GetSpecialization) == "function" then
+			local specIndex = GetSpecialization()
+			if specIndex then
+				local okSpecRole, specRole = pcall(GetSpecializationRole, specIndex)
+				if okSpecRole and not isSecretValue(specRole) then
+					role = specRole
 				end
 			end
 		end
-		if role and role ~= "NONE" then
+	end
+	if role and role ~= "NONE" then
+		local style = M.DB.roleIconStyle or "pixels"
+		local applied = false
+		if style == "blizzard" then
+			applied = applyBlizzardRoleAtlas(frame.roleIcon, role)
+		end
+		if not applied then
 			local icon
-			local roleFolder = roleStyle
 			if role == "TANK" then
-				icon = "Interface\\AddOns\\SimpleRaidFrames\\media\\roles\\"
-					.. roleFolder .. "\\tank.png"
+				icon = ROLE_ICON_BASE .. "tank.png"
 			elseif role == "HEALER" then
-				icon = "Interface\\AddOns\\SimpleRaidFrames\\media\\roles\\"
-					.. roleFolder .. "\\healer.png"
+				icon = ROLE_ICON_BASE .. "healer.png"
 			elseif role == "DAMAGER" then
-				icon = "Interface\\AddOns\\SimpleRaidFrames\\media\\roles\\"
-					.. roleFolder .. "\\dps.png"
+				icon = ROLE_ICON_BASE .. "dps.png"
 			end
 			if icon then
 				frame.roleIcon:SetTexture(icon)
 				frame.roleIcon:SetTexCoord(0, 1, 0, 1)
-				if frame.roleIcon.SetVertexColor then
-					frame.roleIcon:SetVertexColor(1, 1, 1, 1)
-				end
-				if frame.roleIcon.SetDesaturated then
-					frame.roleIcon:SetDesaturated(false)
-				end
-				frame.roleIcon:Show()
 				frame.roleIcon._srfIcon = icon
 			end
 		end
+		if frame.roleIcon.SetVertexColor then
+			local r, g, b = getRoleIconColor(unit, style)
+			frame.roleIcon:SetVertexColor(r, g, b, 1)
+		end
+		if frame.roleIcon.SetDesaturated then
+			frame.roleIcon:SetDesaturated(false)
+		end
+		frame.roleIcon:Show()
 	end
 
 	applyRoleIconLayout(frame)
@@ -138,5 +187,4 @@ function M:RefreshRaidRoleIcons()
 	end
 end
 
-M.ApplyRoleIconLayout = applyRoleIconLayout
 M.ApplyRoleIconStyle = applyRoleIconStyle

@@ -3,15 +3,16 @@ local M = _G[ADDON_NAME]
 
 local isFrameInRaidContainer = M.IsFrameInRaidContainer
 local canMutateRaidFrames = M.CanMutateRaidFrames
+local safeGetValue = M.SafeGetValue
 
 local function applyPrivateAuraAnchorBottomLeft(frame)
-	if not frame or not frame.PrivateAuraAnchors or not M.DB then return end
+	local anchors = safeGetValue(frame, "PrivateAuraAnchors")
+	if not frame or not anchors or not M.DB then return end
 	if not isFrameInRaidContainer(frame) then return end
 	if not M.DB.privateAurasEnabled then return end
 
-	local anchors = frame.PrivateAuraAnchors
-	local target = frame.healthBar or frame
-	local anchor1 = frame.PrivateAuraAnchor1 or anchors[1]
+	local target = safeGetValue(frame, "healthBar") or frame
+	local anchor1 = safeGetValue(frame, "PrivateAuraAnchor1") or anchors[1]
 	if anchor1 then
 		anchor1:ClearAllPoints()
 		anchor1:SetPoint("BOTTOMLEFT", target, "BOTTOMLEFT", 3, 3)
@@ -19,14 +20,13 @@ local function applyPrivateAuraAnchorBottomLeft(frame)
 end
 
 local function applyPrivateAuraSettings(frame)
-	if not frame or not frame.PrivateAuraAnchors or not M.DB then return end
+	local anchors = safeGetValue(frame, "PrivateAuraAnchors")
+	if not frame or not anchors or not M.DB then return end
 	if not isFrameInRaidContainer(frame) then return end
 	if not canMutateRaidFrames(frame) then
 		M._pendingPrivateAuraRefresh = true
 		return
 	end
-
-	local anchors = frame.PrivateAuraAnchors
 
 	if not M.DB.privateAurasEnabled then
 		for _, anchor in ipairs(anchors) do

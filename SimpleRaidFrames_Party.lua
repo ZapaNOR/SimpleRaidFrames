@@ -3,6 +3,7 @@ local M = _G[ADDON_NAME]
 
 local canMutateRaidFrames = M.CanMutateRaidFrames
 local isFrameInRaidContainer = M.IsFrameInRaidContainer
+local getFrameUnit = M.GetFrameUnit
 local HIDDEN_SCALE = 0.001
 
 local function isEditModeActive()
@@ -34,47 +35,19 @@ local function setPartyPlayerHidden(frame, hidden, allowHard)
 	if hidden then
 		if not frame._srfPartySelfHidden then
 			frame._srfPartySelfHidden = true
-			if frame.GetAlpha then
-				frame._srfPartySelfAlpha = frame:GetAlpha()
-			end
-			if frame.GetScale then
-				frame._srfPartySelfScale = frame:GetScale()
-			end
-			if frame.IsMouseEnabled then
-				frame._srfPartySelfMouse = frame:IsMouseEnabled()
-			end
 		end
-		if frame.SetAlpha then frame:SetAlpha(0) end
+		if frame.SetAlpha then pcall(frame.SetAlpha, frame, 0) end
 		if allowHard then
-			if frame.SetScale then frame:SetScale(HIDDEN_SCALE) end
-			if frame.EnableMouse then frame:EnableMouse(false) end
+			if frame.SetScale then pcall(frame.SetScale, frame, HIDDEN_SCALE) end
+			if frame.EnableMouse then pcall(frame.EnableMouse, frame, false) end
 		end
 	else
 		if not frame._srfPartySelfHidden then return end
 		if not allowHard then return end
 		frame._srfPartySelfHidden = nil
-		if frame.SetAlpha then frame:SetAlpha(frame._srfPartySelfAlpha or 1) end
-		if frame.SetScale then frame:SetScale(frame._srfPartySelfScale or 1) end
-		if frame.EnableMouse and frame._srfPartySelfMouse ~= nil then
-			frame:EnableMouse(frame._srfPartySelfMouse)
-		end
-		frame._srfPartySelfAlpha = nil
-		frame._srfPartySelfScale = nil
-		frame._srfPartySelfMouse = nil
-	end
-end
-
-function M:ApplyPartyPlayerVisibility(frame)
-	local partyFrame = frame or CompactPartyFrame
-	if not partyFrame then return end
-	if partyFrame.groupType and CompactRaidGroupTypeEnum
-		and partyFrame.groupType ~= CompactRaidGroupTypeEnum.Party then
-		return
-	end
-	if partyFrame.memberUnitFrames then
-		for _, memberUnitFrame in ipairs(partyFrame.memberUnitFrames) do
-			self:HidePartyPlayerFrameIfNeeded(memberUnitFrame)
-		end
+		if frame.SetAlpha then pcall(frame.SetAlpha, frame, 1) end
+		if frame.SetScale then pcall(frame.SetScale, frame, 1) end
+		if frame.EnableMouse then pcall(frame.EnableMouse, frame, true) end
 	end
 end
 
@@ -131,7 +104,7 @@ end
 function M:HidePartyPlayerFrameIfNeeded(frame)
 	if not frame then return end
 	if isFrameInRaidContainer and not isFrameInRaidContainer(frame) then return end
-	local unit = frame.unit or frame.displayedUnit
+	local unit = getFrameUnit(frame)
 	local shouldHide = false
 	if not isEditModeActive() then
 		shouldHide = shouldHidePlayerInParty()

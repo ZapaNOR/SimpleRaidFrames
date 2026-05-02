@@ -24,7 +24,6 @@ function M:CreateSettingsPanel()
 
 	local category = Settings.RegisterCanvasLayoutCategory(panel, M._settingsCategoryName)
 	Settings.RegisterAddOnCategory(category)
-	M._settingsPanel = panel
 end
 
 local function printSlashHelp()
@@ -86,10 +85,6 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 		if M._pendingPrivateAuraRefresh then
 			M._pendingPrivateAuraRefresh = false
 			M:RefreshPrivateAuras()
-		end
-		if M._pendingAuraLayoutRefresh then
-			M._pendingAuraLayoutRefresh = false
-			M:RefreshRaidAuras()
 		end
 		if M._pendingRoleIconRefresh then
 			M._pendingRoleIconRefresh = false

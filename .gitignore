@@ -1,3 +1,2 @@
 .env
-/.release/SimpleBoss*
-/.release/SimpleBossMods
+/.release/*.zip

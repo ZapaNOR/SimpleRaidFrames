@@ -2,6 +2,7 @@ package-as: SimpleRaidFrames
 enable-nolib-creation: no
 wago-id: EGPedZN1
 curse-id: 1450238
+manual-changelog: CHANGELOG.md
 
 ignore:
     - README.md
