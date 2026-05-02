@@ -9,6 +9,89 @@ local DEFAULT_FONT_SIZE = CONST.DEFAULT_FONT_SIZE
 local OUTLINE_OPTIONS = CONST.OUTLINE_OPTIONS
 local INDICATOR_ANCHORS = CONST.INDICATOR_ANCHORS
 
+local resetConfirmDialog
+
+local function resetAllSettings()
+	SimpleRaidFramesDB = {}
+	M.EnsureDefaults()
+	M:ApplySettings()
+	local existing = M._settingsFrame
+	M._settingsFrame = nil
+	if existing and AceGUI then
+		AceGUI:Release(existing)
+	end
+	M:OpenSettings()
+end
+
+local function showResetConfirmation()
+	if not resetConfirmDialog then
+		local dialog = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+		dialog:SetSize(360, 126)
+		dialog:SetPoint("CENTER")
+		dialog:SetFrameStrata("DIALOG")
+		dialog:EnableMouse(true)
+		if dialog.EnableKeyboard then
+			dialog:EnableKeyboard(true)
+		end
+		dialog:SetBackdrop({
+			bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+			edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+			tile = true,
+			tileSize = 32,
+			edgeSize = 32,
+			insets = { left = 11, right = 12, top = 12, bottom = 11 },
+		})
+
+		local title = dialog:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+		title:SetPoint("TOP", 0, -18)
+		title:SetText("Reset SimpleRaidFrames")
+
+		local text = dialog:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+		text:SetPoint("TOPLEFT", 24, -46)
+		text:SetPoint("TOPRIGHT", -24, -46)
+		text:SetJustifyH("CENTER")
+		text:SetText("Reset all settings to defaults?")
+
+		local reset = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
+		reset:SetSize(96, 24)
+		reset:SetPoint("BOTTOMRIGHT", dialog, "BOTTOM", -6, 20)
+		reset:SetText("Reset")
+		reset:SetScript("OnClick", function()
+			dialog:Hide()
+			resetAllSettings()
+		end)
+
+		local cancel = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
+		cancel:SetSize(96, 24)
+		cancel:SetPoint("BOTTOMLEFT", dialog, "BOTTOM", 6, 20)
+		cancel:SetText("Cancel")
+		cancel:SetScript("OnClick", function()
+			dialog:Hide()
+		end)
+
+		dialog:SetScript("OnKeyDown", function(self, key)
+			if key == "ESCAPE" then
+				self:Hide()
+			end
+		end)
+		dialog:SetScript("OnHide", function(self)
+			if self.SetPropagateKeyboardInput then
+				self:SetPropagateKeyboardInput(true)
+			end
+		end)
+		if dialog.SetPropagateKeyboardInput then
+			dialog:SetPropagateKeyboardInput(true)
+		end
+		dialog:Hide()
+		resetConfirmDialog = dialog
+	end
+
+	resetConfirmDialog:Show()
+	if resetConfirmDialog.SetPropagateKeyboardInput then
+		resetConfirmDialog:SetPropagateKeyboardInput(false)
+	end
+end
+
 local function createSettingsWindow()
 	if M._settingsFrame then
 		M._settingsFrame:Show()
@@ -883,7 +966,7 @@ local function createSettingsWindow()
 		resetBtn:SetPoint("RIGHT", frame.closebutton, "LEFT", -8, 0)
 		resetBtn:SetText("Reset All Settings")
 		resetBtn:SetScript("OnClick", function()
-			StaticPopup_Show("SRF_RESET_CONFIRM")
+			showResetConfirmation()
 		end)
 		frame._srfResetButton = resetBtn
 	end
@@ -891,28 +974,6 @@ local function createSettingsWindow()
 	M._settingsFrame = frame
 	return frame
 end
-
-StaticPopupDialogs = StaticPopupDialogs or {}
-StaticPopupDialogs["SRF_RESET_CONFIRM"] = {
-	text = "Reset all SimpleRaidFrames settings to defaults?",
-	button1 = "Reset",
-	button2 = "Cancel",
-	OnAccept = function()
-		SimpleRaidFramesDB = {}
-		M.EnsureDefaults()
-		M:ApplySettings()
-		local existing = M._settingsFrame
-		M._settingsFrame = nil
-		if existing and AceGUI then
-			AceGUI:Release(existing)
-		end
-		M:OpenSettings()
-	end,
-	timeout = 0,
-	whileDead = true,
-	hideOnEscape = true,
-	preferredIndex = 3,
-}
 
 function M:OpenSettings()
 	local frame = createSettingsWindow()

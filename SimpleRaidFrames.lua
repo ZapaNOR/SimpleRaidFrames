@@ -83,7 +83,6 @@ local DEFAULTS = {
 	auraBarsPlayerOnly = true,
 	auraBarsDefaultColor = { r = 0.3, g = 0.9, b = 0.4, a = 1.0 },
 	auraBarsList = {},
-	privateAurasEnabled = true,
 	leaderAssistEnabled = true,
 	leaderAssistAnchor = "TOP",
 	leaderAssistOffsetX = 0,
@@ -111,7 +110,6 @@ M.CONST = {
 M._settingsCategoryName = "SimpleRaidFrames"
 M.DB = nil
 M._settingsFrame = nil
-M._pendingPrivateAuraRefresh = false
 M._pendingRoleIconRefresh = false
 M._pendingPartyVisibilityRefresh = false
 M._pendingPartySoloVisibilityRefresh = false
@@ -306,9 +304,7 @@ local function ensureDefaults()
 	SimpleRaidFramesDB.auraBarsOffsetX = tonumber(SimpleRaidFramesDB.auraBarsOffsetX) or DEFAULTS.auraBarsOffsetX
 	SimpleRaidFramesDB.auraBarsOffsetY = tonumber(SimpleRaidFramesDB.auraBarsOffsetY) or DEFAULTS.auraBarsOffsetY
 	SimpleRaidFramesDB.auraBarsMax = tonumber(SimpleRaidFramesDB.auraBarsMax) or DEFAULTS.auraBarsMax
-	if SimpleRaidFramesDB.privateAurasEnabled == nil then
-		SimpleRaidFramesDB.privateAurasEnabled = DEFAULTS.privateAurasEnabled
-	end
+	SimpleRaidFramesDB.privateAurasEnabled = nil
 	if SimpleRaidFramesDB.leaderAssistEnabled == nil then
 		if SimpleRaidFramesDB.leaderIndicatorEnabled ~= nil or SimpleRaidFramesDB.assistIndicatorEnabled ~= nil then
 			SimpleRaidFramesDB.leaderAssistEnabled = (SimpleRaidFramesDB.leaderIndicatorEnabled == true)

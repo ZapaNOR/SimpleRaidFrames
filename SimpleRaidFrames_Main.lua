@@ -53,6 +53,13 @@ local function maybePrintSlashHelp()
 	end
 end
 
+local LATE_HOOK_ADDONS = {
+	Blizzard_CompactRaidFrames = true,
+	Blizzard_CUFProfiles = true,
+	Blizzard_SettingsDefinitions_Frame = true,
+	Blizzard_UnitFrame = true,
+}
+
 SLASH_SIMPLERAIDFRAMES1 = "/srf"
 SLASH_SIMPLERAIDFRAMES2 = "/simpleraidframes"
 SlashCmdList["SIMPLERAIDFRAMES"] = function(msg)
@@ -74,7 +81,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 			M.EnsureDefaults()
 			M:CreateSettingsPanel()
 			M:EnsureHooks()
-		else
+		elseif LATE_HOOK_ADDONS[arg1] then
 			M:EnsureHooks()
 		end
 	elseif event == "PLAYER_LOGIN" then
@@ -82,10 +89,6 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 		M:EnsureHooks()
 		maybePrintSlashHelp()
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if M._pendingPrivateAuraRefresh then
-			M._pendingPrivateAuraRefresh = false
-			M:RefreshPrivateAuras()
-		end
 		if M._pendingRoleIconRefresh then
 			M._pendingRoleIconRefresh = false
 			M:RefreshRaidRoleIcons()

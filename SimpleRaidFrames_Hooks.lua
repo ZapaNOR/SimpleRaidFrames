@@ -24,9 +24,6 @@ function M:RefreshPreviewFrame()
 	if self.HideAggroHighlight then
 		self.HideAggroHighlight(frame)
 	end
-	if self.ApplyPrivateAuraSettings then
-		self.ApplyPrivateAuraSettings(frame)
-	end
 	if self.UpdateFrameAuraBars then
 		self.UpdateFrameAuraBars(frame)
 	end
@@ -36,7 +33,6 @@ local function refreshAllSettings(owner, includePartyHeader)
 	owner:RefreshRaidNames()
 	owner:RefreshRaidRoleIcons()
 	owner:RefreshRaidAuras()
-	owner:RefreshPrivateAuras()
 	owner:RefreshRaidStatusText()
 	owner:RefreshRaidHealthColors()
 	owner:RefreshRaidAggro()
@@ -65,6 +61,9 @@ function M:ApplySettings()
 end
 
 function M:EnsureHooks()
+	if M.EnsureUIDropDownMenuTaintGuard then
+		M.EnsureUIDropDownMenuTaintGuard()
+	end
 	if M.EnsureRaidTooltipHooks then
 		M:EnsureRaidTooltipHooks()
 	end
@@ -105,10 +104,6 @@ function M:EnsureHooks()
 			end
 		end)
 		M._updateAurasHooked = true
-	end
-	if type(CompactUnitFrame_UpdatePrivateAuras) == "function" and not M._privateAuraHooked then
-		hooksecurefunc("CompactUnitFrame_UpdatePrivateAuras", M.ApplyPrivateAuraAnchorBottomLeft)
-		M._privateAuraHooked = true
 	end
 	if type(CompactUnitFrame_UpdateAggroHighlight) == "function" and not M._aggroHooked then
 		hooksecurefunc("CompactUnitFrame_UpdateAggroHighlight", M.HideAggroHighlight)

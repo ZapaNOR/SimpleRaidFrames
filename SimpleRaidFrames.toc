@@ -4,7 +4,7 @@
 ## Category-enUS:  |cFF9CDF95Zapa|r Development
 ## IconTexture: Interface\AddOns\SimpleRaidFrames\media\srf-logo.png
 ## Author: Zapa
-## Version: 1.12
+## Version: 1.12.1
 ## SavedVariables: SimpleRaidFramesDB
 ## X-Wago-ID: EGPedZN1
 ## X-Curse-Project-ID: 1450238
@@ -12,6 +12,7 @@
 Libs/Init.xml
 
 SimpleRaidFrames.lua
+SimpleRaidFrames_Taint.lua
 SimpleRaidFrames_HoTDefaults.lua
 SimpleRaidFrames_Indicators.lua
 SimpleRaidFrames_Names.lua
@@ -19,7 +20,6 @@ SimpleRaidFrames_RoleIcons.lua
 SimpleRaidFrames_Health.lua
 SimpleRaidFrames_Auras.lua
 SimpleRaidFrames_AuraBars.lua
-SimpleRaidFrames_PrivateAuras.lua
 SimpleRaidFrames_Party.lua
 SimpleRaidFrames_Tooltips.lua
 SimpleRaidFrames_Hooks.lua
