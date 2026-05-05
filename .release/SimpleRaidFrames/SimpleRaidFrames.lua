@@ -7,6 +7,9 @@ local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 local DEFAULT_FONT_NAME = (LSM and LSM.GetDefault and LSM:GetDefault("font")) or "Friz Quadrata TT"
 local DEFAULT_FONT_PATH = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 local DEFAULT_FONT_SIZE = 11
+local issecretvalue = issecretvalue or function()
+	return false
+end
 
 local ICONS = {
 	offline = "Interface\\AddOns\\SimpleRaidFrames\\media\\icons\\connection.png",
@@ -42,34 +45,44 @@ do
 end
 
 local DEFAULTS = {
-	hideRealmNames = true,
+	hideRaidFrameTooltips = false,
 	hidePlayerInParty = false,
 	showPartyWhenSolo = false,
-	partyFrameWidthOverride = 0,
 	maxNameLength = 4,
 	nameFont = "Expressway",
 	nameFontSize = 14,
-	nameFontOutline = "OUTLINE",
+	nameFontOutline = "",
 	nameShadow = true,
 	nameClassColor = true,
 	roleIconStyle = "pixels",
 	roleIconSize = 16,
-	roleIconOffsetX = 1,
-	roleIconOffsetY = -1,
+	roleIconOffsetX = 3,
+	roleIconOffsetY = -3,
+	roleIconClassColor = true,
 	healthColorEnabled = true,
+	healthColorClassColor = true,
+	healthColorClassColorDarkness = 0.9,
 	healthColor = { r = 0.0745098039, g = 0.0745098039, b = 0.0745098039, a = 1.0 },
 	healthBgColorEnabled = true,
 	healthBgClassColor = true,
 	healthBgColor = { r = 0.0, g = 0.0, b = 0.0, a = 0.6 },
 	healthDeadBgColorEnabled = true,
 	healthDeadBgColor = { r = 0.2509803922, g = 0.0431372549, b = 0.0, a = 1.0 },
-	auraCooldownText = true,
-	auraCooldownFont = "Expressway",
-	auraCooldownFontSize = 12,
-	auraCooldownFontOutline = "OUTLINE",
-	auraCooldownShadow = true,
-	auraGap = 1,
-	privateAurasEnabled = true,
+	healthBlackBorders = true,
+	auraBarsEnabled = false,
+	auraBarsWidth = 26,
+	auraBarsHeight = 8,
+	auraBarsSpacing = -1,
+	auraBarsOffsetX = -6,
+	auraBarsOffsetY = -6,
+	auraBarsAnchor = "TOPRIGHT",
+	auraBarsGrow = "DOWN",
+	auraBarsFillDirection = "LTR",
+	auraBarsTexture = "Flat",
+	auraBarsMax = 7,
+	auraBarsPlayerOnly = true,
+	auraBarsDefaultColor = { r = 0.3, g = 0.9, b = 0.4, a = 1.0 },
+	auraBarsList = {},
 	leaderAssistEnabled = true,
 	leaderAssistAnchor = "TOP",
 	leaderAssistOffsetX = 0,
@@ -78,6 +91,13 @@ local DEFAULTS = {
 	statusIndicatorAnchor = "LEFT",
 	statusIndicatorOffsetX = 0,
 	statusIndicatorOffsetY = 0,
+	readyCheckIconEnabled = false,
+	readyCheckIconAnchor = "CENTER",
+	readyCheckIconSize = 20,
+	readyCheckIconOffsetX = 0,
+	readyCheckIconOffsetY = 0,
+	leaderAssistClassColor = false,
+	statusIndicatorClassColor = false,
 }
 
 M.AceGUI = AceGUI
@@ -95,19 +115,15 @@ M.CONST = {
 M._settingsCategoryName = "SimpleRaidFrames"
 M.DB = nil
 M._settingsFrame = nil
-M._settingsPanel = nil
-M._hooked = false
-M._pendingPrivateAuraRefresh = false
-M._pendingAuraLayoutRefresh = false
 M._pendingRoleIconRefresh = false
 M._pendingPartyVisibilityRefresh = false
-M._pendingPartyFrameSizeRefresh = false
 M._pendingPartySoloVisibilityRefresh = false
 
 local function ensureDefaults()
 	SimpleRaidFramesDB = SimpleRaidFramesDB or {}
-	if SimpleRaidFramesDB.hideRealmNames == nil then
-		SimpleRaidFramesDB.hideRealmNames = DEFAULTS.hideRealmNames
+	SimpleRaidFramesDB.hideRealmNames = nil
+	if SimpleRaidFramesDB.hideRaidFrameTooltips == nil then
+		SimpleRaidFramesDB.hideRaidFrameTooltips = DEFAULTS.hideRaidFrameTooltips
 	end
 	if SimpleRaidFramesDB.hidePlayerInParty == nil then
 		SimpleRaidFramesDB.hidePlayerInParty = DEFAULTS.hidePlayerInParty
@@ -115,13 +131,11 @@ local function ensureDefaults()
 	if SimpleRaidFramesDB.showPartyWhenSolo == nil then
 		SimpleRaidFramesDB.showPartyWhenSolo = DEFAULTS.showPartyWhenSolo
 	end
-	if SimpleRaidFramesDB.partyFrameWidthOverride == nil then
-		SimpleRaidFramesDB.partyFrameWidthOverride = DEFAULTS.partyFrameWidthOverride
+	if SimpleRaidFramesDB.partyFrameWidthOverride ~= nil then
+		SimpleRaidFramesDB.partyFrameWidthOverride = nil
 	end
-	SimpleRaidFramesDB.partyFrameWidthOverride = tonumber(SimpleRaidFramesDB.partyFrameWidthOverride)
-		or DEFAULTS.partyFrameWidthOverride
 	if SimpleRaidFramesDB.partyFrameWidthOriginal ~= nil then
-		SimpleRaidFramesDB.partyFrameWidthOriginal = tonumber(SimpleRaidFramesDB.partyFrameWidthOriginal)
+		SimpleRaidFramesDB.partyFrameWidthOriginal = nil
 	end
 	if SimpleRaidFramesDB.maxNameLength == nil then
 		SimpleRaidFramesDB.maxNameLength = DEFAULTS.maxNameLength
@@ -141,10 +155,9 @@ local function ensureDefaults()
 	if SimpleRaidFramesDB.nameClassColor == nil then
 		SimpleRaidFramesDB.nameClassColor = DEFAULTS.nameClassColor
 	end
-	if SimpleRaidFramesDB.roleIconStyle == nil then
+	if SimpleRaidFramesDB.roleIconStyle ~= "pixels" and SimpleRaidFramesDB.roleIconStyle ~= "blizzard" then
 		SimpleRaidFramesDB.roleIconStyle = DEFAULTS.roleIconStyle
 	end
-	SimpleRaidFramesDB.roleIconStyle = "pixels"
 	if SimpleRaidFramesDB.roleIconSize == nil then
 		SimpleRaidFramesDB.roleIconSize = DEFAULTS.roleIconSize
 	end
@@ -157,8 +170,24 @@ local function ensureDefaults()
 	SimpleRaidFramesDB.roleIconSize = tonumber(SimpleRaidFramesDB.roleIconSize) or DEFAULTS.roleIconSize
 	SimpleRaidFramesDB.roleIconOffsetX = tonumber(SimpleRaidFramesDB.roleIconOffsetX) or DEFAULTS.roleIconOffsetX
 	SimpleRaidFramesDB.roleIconOffsetY = tonumber(SimpleRaidFramesDB.roleIconOffsetY) or DEFAULTS.roleIconOffsetY
+	if SimpleRaidFramesDB.roleIconClassColor == nil then
+		SimpleRaidFramesDB.roleIconClassColor = DEFAULTS.roleIconClassColor
+	end
 	if SimpleRaidFramesDB.healthColorEnabled == nil then
 		SimpleRaidFramesDB.healthColorEnabled = DEFAULTS.healthColorEnabled
+	end
+	if SimpleRaidFramesDB.healthColorClassColor == nil then
+		SimpleRaidFramesDB.healthColorClassColor = DEFAULTS.healthColorClassColor
+	end
+	if SimpleRaidFramesDB.healthColorClassColorDarkness == nil then
+		SimpleRaidFramesDB.healthColorClassColorDarkness = DEFAULTS.healthColorClassColorDarkness
+	end
+	SimpleRaidFramesDB.healthColorClassColorDarkness = tonumber(SimpleRaidFramesDB.healthColorClassColorDarkness)
+		or DEFAULTS.healthColorClassColorDarkness
+	if SimpleRaidFramesDB.healthColorClassColorDarkness < 0 then
+		SimpleRaidFramesDB.healthColorClassColorDarkness = 0
+	elseif SimpleRaidFramesDB.healthColorClassColorDarkness > 1 then
+		SimpleRaidFramesDB.healthColorClassColorDarkness = 1
 	end
 	if SimpleRaidFramesDB.healthBgColorEnabled == nil then
 		SimpleRaidFramesDB.healthBgColorEnabled = DEFAULTS.healthBgColorEnabled
@@ -168,6 +197,9 @@ local function ensureDefaults()
 	end
 	if SimpleRaidFramesDB.healthDeadBgColorEnabled == nil then
 		SimpleRaidFramesDB.healthDeadBgColorEnabled = DEFAULTS.healthDeadBgColorEnabled
+	end
+	if SimpleRaidFramesDB.healthBlackBorders == nil then
+		SimpleRaidFramesDB.healthBlackBorders = DEFAULTS.healthBlackBorders
 	end
 	if type(SimpleRaidFramesDB.healthColor) ~= "table" then
 		SimpleRaidFramesDB.healthColor = {
@@ -211,27 +243,73 @@ local function ensureDefaults()
 		or DEFAULTS.healthDeadBgColor.b
 	SimpleRaidFramesDB.healthDeadBgColor.a = tonumber(SimpleRaidFramesDB.healthDeadBgColor.a)
 		or (DEFAULTS.healthDeadBgColor.a or 1)
-	if SimpleRaidFramesDB.auraCooldownText == nil then
-		SimpleRaidFramesDB.auraCooldownText = DEFAULTS.auraCooldownText
+	SimpleRaidFramesDB.hideBuffs = nil
+	if SimpleRaidFramesDB.auraBarsEnabled == nil then
+		SimpleRaidFramesDB.auraBarsEnabled = DEFAULTS.auraBarsEnabled
 	end
-	if SimpleRaidFramesDB.auraCooldownFont == nil then
-		SimpleRaidFramesDB.auraCooldownFont = DEFAULTS.auraCooldownFont
+	if SimpleRaidFramesDB.auraBarsWidth == nil then
+		SimpleRaidFramesDB.auraBarsWidth = DEFAULTS.auraBarsWidth
 	end
-	if SimpleRaidFramesDB.auraCooldownFontSize == nil then
-		SimpleRaidFramesDB.auraCooldownFontSize = DEFAULTS.auraCooldownFontSize
+	if SimpleRaidFramesDB.auraBarsAnchor == nil then
+		SimpleRaidFramesDB.auraBarsAnchor = DEFAULTS.auraBarsAnchor
 	end
-	if SimpleRaidFramesDB.auraCooldownFontOutline == nil then
-		SimpleRaidFramesDB.auraCooldownFontOutline = DEFAULTS.auraCooldownFontOutline
+	if SimpleRaidFramesDB.auraBarsGrow == nil then
+		SimpleRaidFramesDB.auraBarsGrow = DEFAULTS.auraBarsGrow
 	end
-	if SimpleRaidFramesDB.auraCooldownShadow == nil then
-		SimpleRaidFramesDB.auraCooldownShadow = DEFAULTS.auraCooldownShadow
+	if SimpleRaidFramesDB.auraBarsFillDirection == nil then
+		SimpleRaidFramesDB.auraBarsFillDirection = DEFAULTS.auraBarsFillDirection
 	end
-	if SimpleRaidFramesDB.auraGap == nil then
-		SimpleRaidFramesDB.auraGap = DEFAULTS.auraGap
+	if SimpleRaidFramesDB._auraBarsPlayerOnlyMigrated ~= true then
+		SimpleRaidFramesDB.auraBarsPlayerOnly = true
+		SimpleRaidFramesDB._auraBarsPlayerOnlyMigrated = true
 	end
-	if SimpleRaidFramesDB.privateAurasEnabled == nil then
-		SimpleRaidFramesDB.privateAurasEnabled = DEFAULTS.privateAurasEnabled
+	if SimpleRaidFramesDB.auraBarsHeight == nil then
+		SimpleRaidFramesDB.auraBarsHeight = DEFAULTS.auraBarsHeight
 	end
+	if SimpleRaidFramesDB.auraBarsSpacing == nil then
+		SimpleRaidFramesDB.auraBarsSpacing = DEFAULTS.auraBarsSpacing
+	end
+	if SimpleRaidFramesDB.auraBarsOffsetX == nil then
+		SimpleRaidFramesDB.auraBarsOffsetX = DEFAULTS.auraBarsOffsetX
+	end
+	if SimpleRaidFramesDB.auraBarsOffsetY == nil then
+		SimpleRaidFramesDB.auraBarsOffsetY = DEFAULTS.auraBarsOffsetY
+	end
+	if SimpleRaidFramesDB.auraBarsTexture == nil then
+		SimpleRaidFramesDB.auraBarsTexture = DEFAULTS.auraBarsTexture
+	end
+	if SimpleRaidFramesDB.auraBarsMax == nil then
+		SimpleRaidFramesDB.auraBarsMax = DEFAULTS.auraBarsMax
+	end
+	if SimpleRaidFramesDB.auraBarsPlayerOnly == nil then
+		SimpleRaidFramesDB.auraBarsPlayerOnly = DEFAULTS.auraBarsPlayerOnly
+	end
+	if type(SimpleRaidFramesDB.auraBarsDefaultColor) ~= "table" then
+		SimpleRaidFramesDB.auraBarsDefaultColor = {
+			r = DEFAULTS.auraBarsDefaultColor.r,
+			g = DEFAULTS.auraBarsDefaultColor.g,
+			b = DEFAULTS.auraBarsDefaultColor.b,
+			a = DEFAULTS.auraBarsDefaultColor.a,
+		}
+	end
+	SimpleRaidFramesDB.auraBarsDefaultColor.r = tonumber(SimpleRaidFramesDB.auraBarsDefaultColor.r)
+		or DEFAULTS.auraBarsDefaultColor.r
+	SimpleRaidFramesDB.auraBarsDefaultColor.g = tonumber(SimpleRaidFramesDB.auraBarsDefaultColor.g)
+		or DEFAULTS.auraBarsDefaultColor.g
+	SimpleRaidFramesDB.auraBarsDefaultColor.b = tonumber(SimpleRaidFramesDB.auraBarsDefaultColor.b)
+		or DEFAULTS.auraBarsDefaultColor.b
+	SimpleRaidFramesDB.auraBarsDefaultColor.a = tonumber(SimpleRaidFramesDB.auraBarsDefaultColor.a)
+		or DEFAULTS.auraBarsDefaultColor.a
+	if type(SimpleRaidFramesDB.auraBarsList) ~= "table" then
+		SimpleRaidFramesDB.auraBarsList = {}
+	end
+	SimpleRaidFramesDB.auraBarsWidth = tonumber(SimpleRaidFramesDB.auraBarsWidth) or DEFAULTS.auraBarsWidth
+	SimpleRaidFramesDB.auraBarsHeight = tonumber(SimpleRaidFramesDB.auraBarsHeight) or DEFAULTS.auraBarsHeight
+	SimpleRaidFramesDB.auraBarsSpacing = tonumber(SimpleRaidFramesDB.auraBarsSpacing) or DEFAULTS.auraBarsSpacing
+	SimpleRaidFramesDB.auraBarsOffsetX = tonumber(SimpleRaidFramesDB.auraBarsOffsetX) or DEFAULTS.auraBarsOffsetX
+	SimpleRaidFramesDB.auraBarsOffsetY = tonumber(SimpleRaidFramesDB.auraBarsOffsetY) or DEFAULTS.auraBarsOffsetY
+	SimpleRaidFramesDB.auraBarsMax = tonumber(SimpleRaidFramesDB.auraBarsMax) or DEFAULTS.auraBarsMax
+	SimpleRaidFramesDB.privateAurasEnabled = nil
 	if SimpleRaidFramesDB.leaderAssistEnabled == nil then
 		if SimpleRaidFramesDB.leaderIndicatorEnabled ~= nil or SimpleRaidFramesDB.assistIndicatorEnabled ~= nil then
 			SimpleRaidFramesDB.leaderAssistEnabled = (SimpleRaidFramesDB.leaderIndicatorEnabled == true)
@@ -261,6 +339,21 @@ local function ensureDefaults()
 	if SimpleRaidFramesDB.statusIndicatorOffsetY == nil then
 		SimpleRaidFramesDB.statusIndicatorOffsetY = DEFAULTS.statusIndicatorOffsetY
 	end
+	if SimpleRaidFramesDB.readyCheckIconEnabled == nil then
+		SimpleRaidFramesDB.readyCheckIconEnabled = DEFAULTS.readyCheckIconEnabled
+	end
+	if SimpleRaidFramesDB.readyCheckIconAnchor == nil then
+		SimpleRaidFramesDB.readyCheckIconAnchor = DEFAULTS.readyCheckIconAnchor
+	end
+	if SimpleRaidFramesDB.readyCheckIconSize == nil then
+		SimpleRaidFramesDB.readyCheckIconSize = DEFAULTS.readyCheckIconSize
+	end
+	if SimpleRaidFramesDB.readyCheckIconOffsetX == nil then
+		SimpleRaidFramesDB.readyCheckIconOffsetX = DEFAULTS.readyCheckIconOffsetX
+	end
+	if SimpleRaidFramesDB.readyCheckIconOffsetY == nil then
+		SimpleRaidFramesDB.readyCheckIconOffsetY = DEFAULTS.readyCheckIconOffsetY
+	end
 	if SimpleRaidFramesDB.leaderAssistAnchor ~= "TOP"
 		and SimpleRaidFramesDB.leaderAssistAnchor ~= "RIGHT"
 		and SimpleRaidFramesDB.leaderAssistAnchor ~= "BOTTOM"
@@ -283,6 +376,26 @@ local function ensureDefaults()
 		or DEFAULTS.statusIndicatorOffsetX
 	SimpleRaidFramesDB.statusIndicatorOffsetY = tonumber(SimpleRaidFramesDB.statusIndicatorOffsetY)
 		or DEFAULTS.statusIndicatorOffsetY
+	if SimpleRaidFramesDB.readyCheckIconAnchor ~= "TOP"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "RIGHT"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "BOTTOM"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "LEFT"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "CENTER" then
+		SimpleRaidFramesDB.readyCheckIconAnchor = DEFAULTS.readyCheckIconAnchor
+	end
+	SimpleRaidFramesDB.readyCheckIconSize = tonumber(SimpleRaidFramesDB.readyCheckIconSize)
+		or DEFAULTS.readyCheckIconSize
+	SimpleRaidFramesDB.readyCheckIconOffsetX = tonumber(SimpleRaidFramesDB.readyCheckIconOffsetX)
+		or DEFAULTS.readyCheckIconOffsetX
+	SimpleRaidFramesDB.readyCheckIconOffsetY = tonumber(SimpleRaidFramesDB.readyCheckIconOffsetY)
+		or DEFAULTS.readyCheckIconOffsetY
+	if SimpleRaidFramesDB.leaderAssistClassColor == nil then
+		SimpleRaidFramesDB.leaderAssistClassColor = DEFAULTS.leaderAssistClassColor
+	end
+	if SimpleRaidFramesDB.statusIndicatorClassColor == nil then
+		SimpleRaidFramesDB.statusIndicatorClassColor = DEFAULTS.statusIndicatorClassColor
+	end
+	SimpleRaidFramesDB.indicatorClassColor = nil
 	if LSM and LSM.HashTable then
 		local fonts = LSM:HashTable("font")
 		if fonts then
@@ -294,17 +407,46 @@ local function ensureDefaults()
 					end
 				end
 			end
-			if SimpleRaidFramesDB.auraCooldownFont and not fonts[SimpleRaidFramesDB.auraCooldownFont] then
-				for key, path in pairs(fonts) do
-					if path == SimpleRaidFramesDB.auraCooldownFont then
-						SimpleRaidFramesDB.auraCooldownFont = key
-						break
-					end
-				end
-			end
 		end
 	end
 	M.DB = SimpleRaidFramesDB
+	if M.SeedAuraBarsClassDefaults then
+		M:SeedAuraBarsClassDefaults()
+	end
+end
+
+local function safeGetValue(object, key)
+	if object == nil then return nil end
+	local ok, value = pcall(function()
+		return object[key]
+	end)
+	if ok and not issecretvalue(value) then
+		return value
+	end
+	return nil
+end
+
+local function safeGetParent(object)
+	local getParent = safeGetValue(object, "GetParent")
+	if type(getParent) ~= "function" then
+		return nil
+	end
+	local ok, parent = pcall(getParent, object)
+	if ok and not issecretvalue(parent) then
+		return parent
+	end
+	return nil
+end
+
+local function getFrameUnit(frame)
+	local unit = safeGetValue(frame, "displayedUnit")
+	if type(unit) ~= "string" or unit == "" then
+		unit = safeGetValue(frame, "unit")
+	end
+	if type(unit) == "string" and unit ~= "" then
+		return unit
+	end
+	return nil
 end
 
 local function isFrameInPreview(frame)
@@ -316,21 +458,14 @@ local function isFrameInPreview(frame)
 		if parent == previewFrame then
 			return true
 		end
-		if not parent.GetParent then
-			break
-		end
-		local ok, nextParent = pcall(parent.GetParent, parent)
-		if not ok then
-			break
-		end
-		parent = nextParent
+		parent = safeGetParent(parent)
 	end
 	return false
 end
 
 local function isFrameInRaidContainer(frame)
 	if not frame then return false end
-	local unit = frame.displayedUnit or frame.unit
+	local unit = getFrameUnit(frame)
 	if type(unit) == "string" then
 		if unit ~= "player" and not unit:find("^raid") and not unit:find("^party") then
 			return false
@@ -344,14 +479,7 @@ local function isFrameInRaidContainer(frame)
 		if parent == CompactRaidFrameContainer or parent == CompactPartyFrame then
 			return true
 		end
-		if not parent.GetParent then
-			return false
-		end
-		local ok, nextParent = pcall(parent.GetParent, parent)
-		if not ok then
-			return false
-		end
-		parent = nextParent
+		parent = safeGetParent(parent)
 	end
 	return false
 end
@@ -399,15 +527,6 @@ local function truncateUtf8(text, maxLen)
 	return text
 end
 
-local function safeGsub(text, pattern, replacement)
-	if text == nil then return nil end
-	local ok, result = pcall(string.gsub, text, pattern, replacement)
-	if ok then
-		return result
-	end
-	return nil
-end
-
 local function resolveFont(fontValue)
 	if LSM and LSM.Fetch then
 		local fetched = LSM:Fetch("font", fontValue, true)
@@ -453,11 +572,6 @@ local function applyFontToFontString(fontString, fontPath, size, outline, shadow
 	fontString._srfFontKey = key
 end
 
-local function setTextColorCached(fontString, r, g, b, a)
-	if not fontString or not fontString.SetTextColor then return end
-	fontString:SetTextColor(r, g, b, a)
-end
-
 local function setStatusBarColorCached(statusBar, r, g, b, a)
 	if not statusBar or not statusBar.SetStatusBarColor then return end
 	statusBar:SetStatusBarColor(r, g, b, a)
@@ -484,13 +598,13 @@ local function setTextureColorCached(tex, r, g, b, a)
 end
 
 M.EnsureDefaults = ensureDefaults
+M.SafeGetValue = safeGetValue
+M.IsSecretValue = issecretvalue
+M.GetFrameUnit = getFrameUnit
 M.IsFrameInRaidContainer = isFrameInRaidContainer
 M.CanMutateRaidFrames = canMutateRaidFrames
 M.TruncateUtf8 = truncateUtf8
-M.SafeGsub = safeGsub
 M.ResolveFont = resolveFont
-M.BuildFontKey = buildFontKey
 M.ApplyFontToFontString = applyFontToFontString
-M.SetTextColorCached = setTextColorCached
 M.SetStatusBarColorCached = setStatusBarColorCached
 M.SetTextureColorCached = setTextureColorCached

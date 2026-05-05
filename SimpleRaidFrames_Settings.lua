@@ -415,6 +415,13 @@ local function createSettingsWindow()
 		local CLASS_ORDER = hotDefaults.CLASS_ORDER or { "OTHER" }
 		local CLASS_LABELS = hotDefaults.CLASS_LABELS or { OTHER = "Other" }
 
+		local function classLabel(class)
+			if class == "OTHER" then
+				return "Custom / Other"
+			end
+			return CLASS_LABELS[class] or class
+		end
+
 		local function classOf(entry)
 			if entry and M.IsValidHoTClass and M.IsValidHoTClass(entry.class) then
 				return entry.class
@@ -429,78 +436,34 @@ local function createSettingsWindow()
 		local list = M.DB.auraBarsList
 
 		local grouped = {}
+		for _, class in ipairs(CLASS_ORDER) do
+			grouped[class] = {}
+		end
+
+		local function spellName(entry)
+			return (M.GetAuraBarSpellName and M.GetAuraBarSpellName(entry.spellID))
+				or ("Spell " .. tostring(entry.spellID))
+		end
+
 		for i, entry in ipairs(list) do
 			local class = classOf(entry)
 			grouped[class] = grouped[class] or {}
-			table.insert(grouped[class], { entry = entry, originalIndex = i })
+			table.insert(grouped[class], {
+				entry = entry,
+				name = spellName(entry),
+				originalIndex = i,
+			})
 		end
 
-		local function renderEntryRow(class, entryRef)
-			local entry = entryRef.entry
-			local row = AceGUI:Create("SimpleGroup")
-			row:SetLayout("Flow")
-			row:SetFullWidth(true)
-
-			local name = (M.GetAuraBarSpellName and M.GetAuraBarSpellName(entry.spellID)) or ("Spell " .. tostring(entry.spellID))
-			local label = AceGUI:Create("Label")
-			label:SetText(("|cFFFFFFFF%s|r\n|cFF888888ID %s|r"):format(name, tostring(entry.spellID)))
-			label:SetWidth(220)
-			row:AddChild(label)
-
-			local color = AceGUI:Create("ColorPicker")
-			if color.SetHasAlpha then color:SetHasAlpha(true) end
-			local c = entry.color or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
-			color:SetColor(c.r, c.g, c.b, c.a or 1)
-			color:SetWidth(120)
-			color:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
-				entry.color = { r = r, g = g, b = b, a = a }
-			M:ApplySettings()
-		end)
-			row:AddChild(color)
-
-			local remove = AceGUI:Create("Button")
-			remove:SetText("Remove")
-			remove:SetWidth(90)
-			remove:SetCallback("OnClick", function()
-				for i = #M.DB.auraBarsList, 1, -1 do
-					if M.DB.auraBarsList[i] == entry then
-						table.remove(M.DB.auraBarsList, i)
-						break
-					end
+		for _, entries in pairs(grouped) do
+			table.sort(entries, function(a, b)
+				local aName = tostring(a.name or ""):lower()
+				local bName = tostring(b.name or ""):lower()
+				if aName == bName then
+					return (a.originalIndex or 0) < (b.originalIndex or 0)
 				end
-			M:ApplySettings()
-				refresh()
-		end)
-			row:AddChild(remove)
-
-			container:AddChild(row)
-		end
-
-		for _, class in ipairs(CLASS_ORDER) do
-			local entries = grouped[class]
-			if entries and #entries > 0 then
-				local section = AceGUI:Create("Heading")
-				section:SetText(CLASS_LABELS[class] or class)
-				section:SetFullWidth(true)
-				container:AddChild(section)
-				for _, entryRef in ipairs(entries) do
-					renderEntryRow(class, entryRef)
-				end
-			end
-		end
-
-		local addHeading = AceGUI:Create("Heading")
-		addHeading:SetText("Add Spell")
-		addHeading:SetFullWidth(true)
-		container:AddChild(addHeading)
-
-		local addRow = AceGUI:Create("SimpleGroup")
-		addRow:SetLayout("Flow")
-		addRow:SetFullWidth(true)
-
-		local classDropdownList = {}
-		for _, class in ipairs(CLASS_ORDER) do
-			classDropdownList[class] = CLASS_LABELS[class] or class
+				return aName < bName
+			end)
 		end
 
 		local _, defaultClass = UnitClass and UnitClass("player")
@@ -508,58 +471,190 @@ local function createSettingsWindow()
 			defaultClass = "OTHER"
 		end
 
-		local classDropdown = AceGUI:Create("Dropdown")
-		classDropdown:SetLabel("Class")
-		classDropdown:SetList(classDropdownList, CLASS_ORDER)
-		classDropdown:SetValue(defaultClass)
-		classDropdown:SetWidth(160)
-		addRow:AddChild(classDropdown)
+		local selectedClass = M._auraBarsSelectedClass
+		if not (selectedClass and CLASS_LABELS[selectedClass]) then
+			selectedClass = defaultClass
+		end
+		M._auraBarsSelectedClass = selectedClass
 
-		local spellInput = AceGUI:Create("EditBox")
-		spellInput:SetLabel("Spell ID or Name")
-		spellInput:SetWidth(220)
-		addRow:AddChild(spellInput)
+		local function renderEntryRow(target, entryRef)
+			local entry = entryRef.entry
+			local row = AceGUI:Create("SimpleGroup")
+			row:SetLayout("Flow")
+			row:SetFullWidth(true)
 
-		local addBtn = AceGUI:Create("Button")
-		addBtn:SetText("Add")
-		addBtn:SetWidth(80)
-		addBtn:SetCallback("OnClick", function()
-			local raw = spellInput:GetText()
-			if not raw or raw:match("^%s*$") then return end
-			local spellID
-			if M.ResolveSpellInput then
-				_, spellID = M.ResolveSpellInput(raw)
-			else
-				spellID = tonumber(raw)
-			end
-			if not spellID then
-				print("|cFF9CDF95SimpleRaidFrames:|r Could not resolve spell '" .. tostring(raw) .. "'. Use the exact spell name or numeric ID.")
-				return
-			end
-			M.DB.auraBarsList = M.DB.auraBarsList or {}
-			for _, existing in ipairs(M.DB.auraBarsList) do
-				if tonumber(existing.spellID) == spellID then
-					refresh()
-					return
+			local label = AceGUI:Create("Label")
+			label:SetText(("|cFFFFFFFF%s|r\n|cFF888888ID %s|r"):format(entryRef.name, tostring(entry.spellID)))
+			label:SetWidth(170)
+			row:AddChild(label)
+
+			local color = AceGUI:Create("ColorPicker")
+			if color.SetHasAlpha then color:SetHasAlpha(true) end
+			local c = entry.color or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
+			color:SetColor(c.r, c.g, c.b, c.a or 1)
+			color:SetWidth(95)
+			color:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+				entry.color = { r = r, g = g, b = b, a = a }
+				M:ApplySettings()
+			end)
+			row:AddChild(color)
+
+			local remove = AceGUI:Create("Button")
+			remove:SetText("Remove")
+			remove:SetWidth(75)
+			remove:SetCallback("OnClick", function()
+				for i = #M.DB.auraBarsList, 1, -1 do
+					if M.DB.auraBarsList[i] == entry then
+						table.remove(M.DB.auraBarsList, i)
+						break
+					end
+				end
+				M:ApplySettings()
+				refresh()
+			end)
+			row:AddChild(remove)
+
+			target:AddChild(row)
+		end
+
+		local browser = AceGUI:Create("SimpleGroup")
+		browser:SetLayout("Table")
+		browser:SetUserData("table", {
+			columns = {
+				{ width = 0.28 },
+				{ width = 0.72 },
+			},
+			spaceH = 8,
+			alignH = "LEFT",
+			alignV = "TOP",
+		})
+		browser:SetFullWidth(true)
+
+		local classNav = AceGUI:Create("SimpleGroup")
+		classNav:SetLayout("List")
+		classNav:SetFullWidth(true)
+
+		local spellPane = AceGUI:Create("SimpleGroup")
+		spellPane:SetLayout("List")
+		spellPane:SetFullWidth(true)
+
+		local classButtons = {}
+
+		local function updateClassButtons()
+			for _, class in ipairs(CLASS_ORDER) do
+				local button = classButtons[class]
+				if button then
+					local entries = grouped[class] or {}
+					button:SetText(("%s%s (%d)"):format(class == selectedClass and "> " or "", classLabel(class), #entries))
+					if button.SetDisabled then
+						button:SetDisabled(class == selectedClass)
+					end
 				end
 			end
-			local class = classDropdown:GetValue() or defaultClass
-			if not (M.IsValidHoTClass and M.IsValidHoTClass(class)) then
-				class = "OTHER"
-			end
-			local seedColor = M.GetHoTClassColor and M.GetHoTClassColor(class)
-				or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
-			table.insert(M.DB.auraBarsList, {
-				spellID = spellID,
-				class = class,
-				color = { r = seedColor.r, g = seedColor.g, b = seedColor.b, a = seedColor.a or 1 },
-			})
-			M:ApplySettings()
-			refresh()
-		end)
-		addRow:AddChild(addBtn)
+		end
 
-		container:AddChild(addRow)
+		local function renderSpellPane()
+			spellPane:ReleaseChildren()
+
+			local selectedHeading = AceGUI:Create("Heading")
+			selectedHeading:SetText(classLabel(selectedClass))
+			selectedHeading:SetFullWidth(true)
+			spellPane:AddChild(selectedHeading)
+
+			local selectedEntries = grouped[selectedClass] or {}
+			if #selectedEntries > 0 then
+				for _, entryRef in ipairs(selectedEntries) do
+					renderEntryRow(spellPane, entryRef)
+				end
+			else
+				local empty = AceGUI:Create("Label")
+				empty:SetText("No tracked spells in this category.")
+				empty:SetFullWidth(true)
+				spellPane:AddChild(empty)
+			end
+
+			local addHeading = AceGUI:Create("Heading")
+			addHeading:SetText("Add Spell")
+			addHeading:SetFullWidth(true)
+			spellPane:AddChild(addHeading)
+
+			local addRow = AceGUI:Create("SimpleGroup")
+			addRow:SetLayout("Flow")
+			addRow:SetFullWidth(true)
+
+			local spellInput = AceGUI:Create("EditBox")
+			spellInput:SetLabel("Spell ID or Name")
+			spellInput:SetWidth(230)
+			addRow:AddChild(spellInput)
+
+			local addBtn = AceGUI:Create("Button")
+			addBtn:SetText("Add")
+			addBtn:SetWidth(75)
+			addBtn:SetCallback("OnClick", function()
+				local raw = spellInput:GetText()
+				if not raw or raw:match("^%s*$") then return end
+				local spellID
+				if M.ResolveSpellInput then
+					_, spellID = M.ResolveSpellInput(raw)
+				else
+					spellID = tonumber(raw)
+				end
+				if not spellID then
+					print("|cFF9CDF95SimpleRaidFrames:|r Could not resolve spell '" .. tostring(raw) .. "'. Use the exact spell name or numeric ID.")
+					return
+				end
+				M.DB.auraBarsList = M.DB.auraBarsList or {}
+				for _, existing in ipairs(M.DB.auraBarsList) do
+					if tonumber(existing.spellID) == spellID then
+						refresh()
+						return
+					end
+				end
+				local class = selectedClass or defaultClass
+				if not (M.IsValidHoTClass and M.IsValidHoTClass(class)) then
+					class = "OTHER"
+				end
+				local seedColor = M.GetHoTClassColor and M.GetHoTClassColor(class)
+					or { r = 0.3, g = 0.9, b = 0.4, a = 1 }
+				table.insert(M.DB.auraBarsList, {
+					spellID = spellID,
+					class = class,
+					color = { r = seedColor.r, g = seedColor.g, b = seedColor.b, a = seedColor.a or 1 },
+				})
+				M:ApplySettings()
+				refresh()
+			end)
+			addRow:AddChild(addBtn)
+
+			spellPane:AddChild(addRow)
+		end
+
+		for _, class in ipairs(CLASS_ORDER) do
+			local entries = grouped[class] or {}
+			local button = AceGUI:Create("Button")
+			button:SetText(("%s%s (%d)"):format(class == selectedClass and "> " or "", classLabel(class), #entries))
+			button:SetFullWidth(true)
+			if button.SetDisabled then
+				button:SetDisabled(class == selectedClass)
+			end
+			button:SetCallback("OnClick", function()
+				if selectedClass == class then return end
+				selectedClass = class
+				M._auraBarsSelectedClass = class
+				updateClassButtons()
+				renderSpellPane()
+				spellPane:DoLayout()
+				browser:DoLayout()
+				container:DoLayout()
+			end)
+			classButtons[class] = button
+			classNav:AddChild(button)
+		end
+		browser:AddChild(classNav)
+
+		renderSpellPane()
+		browser:AddChild(spellPane)
+		container:AddChild(browser)
 
 		local restoreBtn = AceGUI:Create("Button")
 		restoreBtn:SetText("Restore Class Defaults")
@@ -567,7 +662,7 @@ local function createSettingsWindow()
 		restoreBtn:SetCallback("OnClick", function()
 			if M.RestoreAuraBarsClassDefaults then
 				M:RestoreAuraBarsClassDefaults()
-			M:ApplySettings()
+				M:ApplySettings()
 				refresh()
 			end
 		end)
@@ -772,6 +867,72 @@ local function createSettingsWindow()
 		end)
 		statusClassColor:SetFullWidth(true)
 		container:AddChild(statusClassColor)
+
+		local readyHeading = AceGUI:Create("Heading")
+		readyHeading:SetText("Ready Check")
+		readyHeading:SetFullWidth(true)
+		container:AddChild(readyHeading)
+
+		local readyEnable = AceGUI:Create("CheckBox")
+		readyEnable:SetLabel("Customize Ready Check Icon")
+		readyEnable:SetValue(M.DB.readyCheckIconEnabled)
+		readyEnable:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.readyCheckIconEnabled = val and true or false
+			M:ApplySettings()
+			container:ReleaseChildren()
+			buildIndicatorsTab(container)
+		end)
+		readyEnable:SetFullWidth(true)
+		container:AddChild(readyEnable)
+
+		local readyPos = AceGUI:Create("Dropdown")
+		readyPos:SetLabel("Ready Check Position")
+		readyPos:SetList(anchorList)
+		readyPos:SetValue(M.DB.readyCheckIconAnchor or M.DEFAULTS.readyCheckIconAnchor)
+		readyPos:SetDisabled(not M.DB.readyCheckIconEnabled)
+		readyPos:SetCallback("OnValueChanged", function(_, _, val)
+			if not val or val == "" then return end
+			M.DB.readyCheckIconAnchor = val
+			M:ApplySettings()
+		end)
+		readyPos:SetFullWidth(true)
+		container:AddChild(readyPos)
+
+		local readySize = AceGUI:Create("Slider")
+		readySize:SetLabel("Ready Check Size")
+		readySize:SetSliderValues(8, 40, 1)
+		readySize:SetValue(M.DB.readyCheckIconSize or M.DEFAULTS.readyCheckIconSize)
+		readySize:SetDisabled(not M.DB.readyCheckIconEnabled)
+		readySize:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.readyCheckIconSize = math.floor(tonumber(val) or M.DEFAULTS.readyCheckIconSize)
+			M:ApplySettings()
+		end)
+		readySize:SetFullWidth(true)
+		container:AddChild(readySize)
+
+		local readyOffsetX = AceGUI:Create("Slider")
+		readyOffsetX:SetLabel("Ready Check Offset X")
+		readyOffsetX:SetSliderValues(-30, 30, 1)
+		readyOffsetX:SetValue(M.DB.readyCheckIconOffsetX or 0)
+		readyOffsetX:SetDisabled(not M.DB.readyCheckIconEnabled)
+		readyOffsetX:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.readyCheckIconOffsetX = math.floor(tonumber(val) or 0)
+			M:ApplySettings()
+		end)
+		readyOffsetX:SetFullWidth(true)
+		container:AddChild(readyOffsetX)
+
+		local readyOffsetY = AceGUI:Create("Slider")
+		readyOffsetY:SetLabel("Ready Check Offset Y")
+		readyOffsetY:SetSliderValues(-30, 30, 1)
+		readyOffsetY:SetValue(M.DB.readyCheckIconOffsetY or 0)
+		readyOffsetY:SetDisabled(not M.DB.readyCheckIconEnabled)
+		readyOffsetY:SetCallback("OnValueChanged", function(_, _, val)
+			M.DB.readyCheckIconOffsetY = math.floor(tonumber(val) or 0)
+			M:ApplySettings()
+		end)
+		readyOffsetY:SetFullWidth(true)
+		container:AddChild(readyOffsetY)
 	end
 
 	local function buildHealthTab(container)

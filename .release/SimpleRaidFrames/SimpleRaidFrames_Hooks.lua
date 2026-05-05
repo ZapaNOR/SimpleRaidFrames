@@ -24,87 +24,89 @@ function M:RefreshPreviewFrame()
 	if self.HideAggroHighlight then
 		self.HideAggroHighlight(frame)
 	end
-	if self.ApplyPrivateAuraSettings then
-		self.ApplyPrivateAuraSettings(frame)
-	elseif self.ApplyPrivateAuraAnchorBottomLeft then
-		self.ApplyPrivateAuraAnchorBottomLeft(frame)
+	if self.UpdateFrameAuraBars then
+		self.UpdateFrameAuraBars(frame)
 	end
-	if self.ApplyAuraCooldownSettings then
-		if frame.buffFrames then
-			for _, buffFrame in ipairs(frame.buffFrames) do
-				self.ApplyAuraCooldownSettings(buffFrame.cooldown)
-			end
-		end
-		if frame.debuffFrames then
-			for _, debuffFrame in ipairs(frame.debuffFrames) do
-				self.ApplyAuraCooldownSettings(debuffFrame.cooldown)
-			end
-		end
+end
+
+local function refreshAllSettings(owner, includePartyHeader)
+	owner:RefreshRaidNames()
+	owner:RefreshRaidRoleIcons()
+	owner:RefreshRaidAuras()
+	owner:RefreshRaidStatusText()
+	owner:RefreshRaidHealthColors()
+	owner:RefreshRaidAggro()
+	if owner.RefreshAuraBars then
+		owner:RefreshAuraBars()
 	end
-	if self.ApplyAuraGapLayout then
-		self.ApplyAuraGapLayout(frame)
+	if owner.RefreshPartyPlayerVisibility then
+		owner:RefreshPartyPlayerVisibility()
+	end
+	if owner.RefreshPartySoloVisibility then
+		owner:RefreshPartySoloVisibility()
+	end
+	if owner.RefreshRaidFrameTooltips then
+		owner:RefreshRaidFrameTooltips()
+	end
+	if owner.RefreshPreviewFrame then
+		owner:RefreshPreviewFrame()
+	end
+	if includePartyHeader and owner.HidePartyHeader then
+		owner:HidePartyHeader()
 	end
 end
 
 function M:ApplySettings()
-	self:RefreshRaidNames()
-	self:RefreshRaidRoleIcons()
-	self:RefreshRaidAuras()
-	self:RefreshPrivateAuras()
-	self:RefreshRaidStatusText()
-	self:RefreshRaidHealthColors()
-	self:RefreshRaidAggro()
-	if self.RefreshPartyPlayerVisibility then
-		self:RefreshPartyPlayerVisibility()
-	end
-	if self.RefreshPartyFrameWidth then
-		self:RefreshPartyFrameWidth()
-	end
-	if self.RefreshPartySoloVisibility then
-		self:RefreshPartySoloVisibility()
-	end
-	if self.RefreshPreviewFrame then
-		self:RefreshPreviewFrame()
-	end
+	refreshAllSettings(self)
 end
 
 function M:EnsureHooks()
+	if M.EnsureUIDropDownMenuTaintGuard then
+		M.EnsureUIDropDownMenuTaintGuard()
+	end
+	if M.EnsureRaidTooltipHooks then
+		M:EnsureRaidTooltipHooks()
+	end
+	if M.EnsureAuraBarHooks then
+		M.EnsureAuraBarHooks()
+	end
+	if M.EnsureNameRefresh then
+		M.EnsureNameRefresh()
+	end
+	if M.EnsureStatusIndicatorRefresh then
+		M.EnsureStatusIndicatorRefresh()
+	end
 	if type(CompactUnitFrame_UpdateName) ~= "function" then return end
 	if not M._nameHooked then
-		hooksecurefunc("CompactUnitFrame_UpdateName", M.ApplyNameSettings)
+		hooksecurefunc("CompactUnitFrame_UpdateName", function(frame)
+			if M and M.ApplyNameSettings then
+				M.ApplyNameSettings(frame)
+			end
+			if M and M.UpdateLeaderAssistIndicator then
+				M.UpdateLeaderAssistIndicator(frame)
+			end
+		end)
 		M._nameHooked = true
 	end
-	if type(CompactUnitFrame_UpdateInRange) == "function" and not M._partyRangeHooked then
+	if type(CompactUnitFrame_UpdateInRange) == "function" and not M._partyVisibilityInRangeHooked then
 		hooksecurefunc("CompactUnitFrame_UpdateInRange", function(frame)
 			if M and M.HidePartyPlayerFrameIfNeeded then
 				M:HidePartyPlayerFrameIfNeeded(frame)
 			end
 		end)
-		M._partyRangeHooked = true
+		M._partyVisibilityInRangeHooked = true
 	end
 	if type(CompactUnitFrame_UpdateStatusText) == "function" and not M._statusTextHooked then
 		hooksecurefunc("CompactUnitFrame_UpdateStatusText", M.UpdateOfflineIndicator)
 		M._statusTextHooked = true
 	end
-	if type(CompactUnitFrame_UtilSetBuff) == "function" and not M._buffHooked then
-		hooksecurefunc("CompactUnitFrame_UtilSetBuff", M.OnBuffSet)
-		M._buffHooked = true
-	end
-	if type(CompactUnitFrame_UtilSetDebuff) == "function" and not M._debuffHooked then
-		hooksecurefunc("CompactUnitFrame_UtilSetDebuff", M.OnDebuffSet)
-		M._debuffHooked = true
-	end
-	if type(CompactUnitFrame_UpdateAuraFrameLayout) == "function" and not M._layoutHooked then
-		hooksecurefunc("CompactUnitFrame_UpdateAuraFrameLayout", function(frame)
-			if M and M.DB then
-				M.ApplyAuraGapLayout(frame)
+	if type(CompactUnitFrame_UpdateAuras) == "function" and not M._updateAurasHooked then
+		hooksecurefunc("CompactUnitFrame_UpdateAuras", function(frame)
+			if M.DB and M.DB.auraBarsEnabled and M.UpdateFrameAuraBars then
+				M.UpdateFrameAuraBars(frame)
 			end
 		end)
-		M._layoutHooked = true
-	end
-	if type(CompactUnitFrame_UpdatePrivateAuras) == "function" and not M._privateAuraHooked then
-		hooksecurefunc("CompactUnitFrame_UpdatePrivateAuras", M.ApplyPrivateAuraAnchorBottomLeft)
-		M._privateAuraHooked = true
+		M._updateAurasHooked = true
 	end
 	if type(CompactUnitFrame_UpdateAggroHighlight) == "function" and not M._aggroHooked then
 		hooksecurefunc("CompactUnitFrame_UpdateAggroHighlight", M.HideAggroHighlight)
@@ -118,9 +120,19 @@ function M:EnsureHooks()
 		hooksecurefunc("CompactUnitFrame_UpdateHealthColor", M.ApplyHealthColors)
 		M._healthColorHooked = true
 	end
-	if type(CompactUnitFrame_UpdateCenterStatusIcon) == "function" and not M._centerStatusNameHooked then
-		hooksecurefunc("CompactUnitFrame_UpdateCenterStatusIcon", M.ApplyNameSettings)
-		M._centerStatusNameHooked = true
+	if type(CompactUnitFrame_UpdateHealPrediction) == "function" and not M._healAbsorbColorHooked then
+		hooksecurefunc("CompactUnitFrame_UpdateHealPrediction", M.ApplyHealPredictionPostUpdate)
+		M._healAbsorbColorHooked = true
+	end
+	if type(CompactUnitFrameReadyCheckMixin) == "table"
+		and type(CompactUnitFrameReadyCheckMixin.SetStatus) == "function"
+		and not M._readyCheckIconHooked then
+		hooksecurefunc(CompactUnitFrameReadyCheckMixin, "SetStatus", function(readyCheckIcon, status)
+			if M and M.ApplyReadyCheckIconStyle then
+				M.ApplyReadyCheckIconStyle(readyCheckIcon, status)
+			end
+		end)
+		M._readyCheckIconHooked = true
 	end
 	if type(CompactPartyFrameMixin) == "table"
 		and type(CompactPartyFrameMixin.RefreshMembers) == "function"
@@ -129,32 +141,8 @@ function M:EnsureHooks()
 			if M and M.RefreshPartyPlayerVisibility then
 				M:RefreshPartyPlayerVisibility(frame)
 			end
-			if M and M.RefreshPartyFrameWidth then
-				M:RefreshPartyFrameWidth(frame)
-			end
 		end)
 		M._partyVisibilityHooked = true
-	end
-	if type(DefaultCompactUnitFrameSetup) == "function" and not M._partyWidthHooked then
-		hooksecurefunc("DefaultCompactUnitFrameSetup", function(frame)
-			if M and M.HidePartyPlayerFrameIfNeeded then
-				M:HidePartyPlayerFrameIfNeeded(frame)
-			end
-			if M and M.ApplyPartyFrameWidth then
-				M:ApplyPartyFrameWidth(frame)
-			end
-		end)
-		if type(DefaultCompactMiniFrameSetup) == "function" then
-			hooksecurefunc("DefaultCompactMiniFrameSetup", function(frame)
-				if M and M.HidePartyPlayerFrameIfNeeded then
-					M:HidePartyPlayerFrameIfNeeded(frame)
-				end
-				if M and M.ApplyPartyFrameWidth then
-					M:ApplyPartyFrameWidth(frame)
-				end
-			end)
-		end
-		M._partyWidthHooked = true
 	end
 	if type(CompactPartyFrame_Generate) == "function" and not M._partyHeaderHooked then
 		hooksecurefunc("CompactPartyFrame_Generate", function(frame)
@@ -174,26 +162,5 @@ function M:EnsureHooks()
 		end)
 		M._previewHooked = true
 	end
-	M:RefreshRaidNames()
-	M:RefreshRaidRoleIcons()
-	M:RefreshRaidAuras()
-	M:RefreshPrivateAuras()
-	M:RefreshRaidStatusText()
-	M:RefreshRaidHealthColors()
-	M:RefreshRaidAggro()
-	if M.RefreshPartyPlayerVisibility then
-		M:RefreshPartyPlayerVisibility()
-	end
-	if M.RefreshPartyFrameWidth then
-		M:RefreshPartyFrameWidth()
-	end
-	if M.RefreshPartySoloVisibility then
-		M:RefreshPartySoloVisibility()
-	end
-	if M.RefreshPreviewFrame then
-		M:RefreshPreviewFrame()
-	end
-	if M.HidePartyHeader then
-		M:HidePartyHeader()
-	end
+	refreshAllSettings(M, true)
 end

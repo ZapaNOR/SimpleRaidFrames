@@ -1,5 +1,12 @@
 # Simple Raid Frames
 
+## 1.12.2 (2026-05-05)
+
+- Added optional ready-check icon placement and size controls under Indicators.
+- Reworked Aura Bars spell management into a class browser with Custom / Other auras separated.
+- Fixed Aura Bars matching to scan live auras by exact spell ID, preventing duplicate bars for same-name auras.
+- Fixed class-colored leader/assist icons using stale or displayed-unit class colors on recycled raid frames.
+
 ## 1.12.1 (2026-05-02)
 
 - Added a UIDropDownMenu taint guard so settings dropdowns no longer block Blizzard community avatar textures.

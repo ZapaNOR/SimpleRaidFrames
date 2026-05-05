@@ -82,6 +82,9 @@ function M:EnsureHooks()
 			if M and M.ApplyNameSettings then
 				M.ApplyNameSettings(frame)
 			end
+			if M and M.UpdateLeaderAssistIndicator then
+				M.UpdateLeaderAssistIndicator(frame)
+			end
 		end)
 		M._nameHooked = true
 	end
@@ -120,6 +123,16 @@ function M:EnsureHooks()
 	if type(CompactUnitFrame_UpdateHealPrediction) == "function" and not M._healAbsorbColorHooked then
 		hooksecurefunc("CompactUnitFrame_UpdateHealPrediction", M.ApplyHealPredictionPostUpdate)
 		M._healAbsorbColorHooked = true
+	end
+	if type(CompactUnitFrameReadyCheckMixin) == "table"
+		and type(CompactUnitFrameReadyCheckMixin.SetStatus) == "function"
+		and not M._readyCheckIconHooked then
+		hooksecurefunc(CompactUnitFrameReadyCheckMixin, "SetStatus", function(readyCheckIcon, status)
+			if M and M.ApplyReadyCheckIconStyle then
+				M.ApplyReadyCheckIconStyle(readyCheckIcon, status)
+			end
+		end)
+		M._readyCheckIconHooked = true
 	end
 	if type(CompactPartyFrameMixin) == "table"
 		and type(CompactPartyFrameMixin.RefreshMembers) == "function"

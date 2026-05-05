@@ -12,6 +12,7 @@ local auraBarEventFrame
 local auraBarUnitEventsRegistered
 local cachedAllowedSpells
 local cachedAllowedCount
+local cachedAllowedOrder
 local cachedColorOverrides
 local cachedTextureName
 local cachedTexturePath
@@ -20,11 +21,22 @@ local cachedSpellNames = {}
 local TICK_INTERVAL = 0.25
 
 local auraScratch = {}
+local seenAuraScratch = {}
 
 local function clearArray(t)
 	for i = #t, 1, -1 do
 		t[i] = nil
 	end
+end
+
+local function clearTable(t)
+	for k in pairs(t) do
+		t[k] = nil
+	end
+end
+
+local function isValueNonSecret(value)
+	return not issecretvalue or not issecretvalue(value)
 end
 
 local function resolveBarTexture()
@@ -275,15 +287,17 @@ local function hideBars(frame, fromIndex)
 end
 
 local function getAllowedSpells()
-	if cachedAllowedSpells then return cachedAllowedSpells, cachedAllowedCount end
+	if cachedAllowedSpells then return cachedAllowedSpells, cachedAllowedCount, cachedAllowedOrder end
 	local seen = {}
 	local allowed = {}
+	local order = {}
 	local count = 0
 	local list = M.DB and M.DB.auraBarsList
 	if type(list) ~= "table" then
 		cachedAllowedSpells = allowed
 		cachedAllowedCount = count
-		return allowed, count
+		cachedAllowedOrder = order
+		return allowed, count, order
 	end
 	for _, entry in ipairs(list) do
 		local id = type(entry) == "table" and tonumber(entry.spellID)
@@ -291,51 +305,120 @@ local function getAllowedSpells()
 			seen[id] = true
 			count = count + 1
 			allowed[count] = id
+			order[id] = count
 		end
 	end
 	cachedAllowedSpells = allowed
 	cachedAllowedCount = count
-	return allowed, count
+	cachedAllowedOrder = order
+	return allowed, count, order
 end
 
-local function getAuraBySpellID(unit, spellID, playerOnly)
-	if playerOnly then
-		local spellName = getSpellName(spellID)
-		if spellName and C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
-			return C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HELPFUL|PLAYER")
-		end
-		return nil
+local function addTrackedAura(auras, aura, spellID, order)
+	local duration = aura.duration
+	if not isValueNonSecret(duration) then
+		duration = 0
 	end
-	if C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID then
-		return C_UnitAuras.GetUnitAuraBySpellID(unit, spellID)
-	end
-	local spellName = getSpellName(spellID)
-	if spellName and C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
-		return C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HELPFUL")
-	end
-end
+	duration = tonumber(duration) or 0
 
-local function addTrackedAura(auras, aura, spellID)
+	local expirationTime = aura.expirationTime
+	if not isValueNonSecret(expirationTime) then
+		expirationTime = 0
+	end
+	expirationTime = tonumber(expirationTime) or 0
+
 	local count = #auras + 1
 	local entry = auras[count] or {}
 	entry.spellID = spellID
-	entry.duration = aura.duration or 0
-	entry.expirationTime = aura.expirationTime or 0
+	entry.duration = duration
+	entry.expirationTime = expirationTime
+	entry.order = order or count
 	auras[count] = entry
 end
 
-local function collectHelpfulAurasUnsafe(unit, playerOnly, auras, spellIDs, spellCount)
-	for i = 1, spellCount do
-		local spellID = spellIDs[i]
-		local aura = getAuraBySpellID(unit, spellID, playerOnly)
-		if aura then
-			addTrackedAura(auras, aura, spellID)
+local function isAuraCastByPlayer(aura)
+	local source = aura and aura.sourceUnit
+	if not source or not isValueNonSecret(source) then return false end
+	return source == "player" or source == "pet"
+end
+
+local function maybeTrackAura(aura, playerOnly, auras, allowedOrder, seenAuras)
+	if not aura then return end
+	local spellID = aura.spellId or aura.spellID
+	if not spellID or not isValueNonSecret(spellID) then return end
+	spellID = tonumber(spellID)
+	local order = spellID and allowedOrder[spellID]
+	if not order then return end
+	if playerOnly and not isAuraCastByPlayer(aura) then return end
+
+	local auraKey = aura.auraInstanceID
+	if auraKey and isValueNonSecret(auraKey) then
+		if seenAuras[auraKey] then return end
+		seenAuras[auraKey] = true
+	else
+		local sourceKey = isValueNonSecret(aura.sourceUnit) and aura.sourceUnit or ""
+		local expirationKey = isValueNonSecret(aura.expirationTime) and aura.expirationTime or ""
+		auraKey = tostring(spellID) .. ":" .. tostring(sourceKey) .. ":" .. tostring(expirationKey)
+		if seenAuras[auraKey] then return end
+		seenAuras[auraKey] = true
+	end
+
+	addTrackedAura(auras, aura, spellID, order)
+end
+
+local function collectAuraSlotResults(unit, playerOnly, auras, allowedOrder, seenAuras, continuationToken, ...)
+	for i = 1, select("#", ...) do
+		local slot = select(i, ...)
+		if slot then
+			maybeTrackAura(C_UnitAuras.GetAuraDataBySlot(unit, slot), playerOnly, auras, allowedOrder, seenAuras)
 		end
+	end
+	return continuationToken
+end
+
+local function collectHelpfulAurasFromSlots(unit, playerOnly, auras, allowedOrder, seenAuras)
+	if not C_UnitAuras or not C_UnitAuras.GetAuraSlots or not C_UnitAuras.GetAuraDataBySlot then
+		return false
+	end
+	local continuationToken = collectAuraSlotResults(
+		unit, playerOnly, auras, allowedOrder, seenAuras, C_UnitAuras.GetAuraSlots(unit, "HELPFUL")
+	)
+	while continuationToken do
+		continuationToken = collectAuraSlotResults(
+			unit, playerOnly, auras, allowedOrder, seenAuras, C_UnitAuras.GetAuraSlots(unit, "HELPFUL", nil, continuationToken)
+		)
+	end
+	return true
+end
+
+local function collectHelpfulAurasFromUnitBuff(unit, playerOnly, auras, allowedOrder, seenAuras)
+	if not UnitBuff then return end
+	for i = 1, 40 do
+		local name, _, _, _, duration, expirationTime, sourceUnit, _, _, spellID = UnitBuff(unit, i)
+		if not name then break end
+		maybeTrackAura({
+			spellId = spellID,
+			sourceUnit = sourceUnit,
+			duration = duration,
+			expirationTime = expirationTime,
+		}, playerOnly, auras, allowedOrder, seenAuras)
 	end
 end
 
-local function collectHelpfulAuras(unit, playerOnly, auras, spellIDs, spellCount)
-	local ok = pcall(collectHelpfulAurasUnsafe, unit, playerOnly, auras, spellIDs, spellCount)
+local function collectHelpfulAurasUnsafe(unit, playerOnly, auras, allowedOrder, seenAuras)
+	if not collectHelpfulAurasFromSlots(unit, playerOnly, auras, allowedOrder, seenAuras) then
+		collectHelpfulAurasFromUnitBuff(unit, playerOnly, auras, allowedOrder, seenAuras)
+	end
+	table.sort(auras, function(a, b)
+		if a.order == b.order then
+			return (a.expirationTime or 0) < (b.expirationTime or 0)
+		end
+		return (a.order or 0) < (b.order or 0)
+	end)
+end
+
+local function collectHelpfulAuras(unit, playerOnly, auras, allowedOrder, seenAuras)
+	local ok = pcall(collectHelpfulAurasUnsafe, unit, playerOnly, auras, allowedOrder, seenAuras)
 	if not ok then
 		clearArray(auras)
 	end
@@ -353,15 +436,18 @@ local function updateFrameAuraBars(frame)
 		return
 	end
 
-	local spellIDs, spellCount = getAllowedSpells()
+	local _, spellCount, allowedOrder = getAllowedSpells()
 	if spellCount == 0 then
 		hideBars(frame)
 		return
 	end
 
 	local auras = auraScratch
+	local seenAuras = seenAuraScratch
 	clearArray(auras)
-	collectHelpfulAuras(unit, M.DB.auraBarsPlayerOnly, auras, spellIDs, spellCount)
+	clearTable(seenAuras)
+	collectHelpfulAuras(unit, M.DB.auraBarsPlayerOnly, auras, allowedOrder, seenAuras)
+	clearTable(seenAuras)
 
 	local overrides = getColorOverrides()
 	local maxBars = tonumber(M.DB.auraBarsMax) or 5
@@ -457,6 +543,7 @@ end
 local function invalidateCaches()
 	cachedAllowedSpells = nil
 	cachedAllowedCount = nil
+	cachedAllowedOrder = nil
 	cachedColorOverrides = nil
 	cachedTextureName = nil
 	cachedTexturePath = nil

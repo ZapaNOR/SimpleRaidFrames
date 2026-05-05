@@ -5,6 +5,49 @@ local DEFAULTS = M.DEFAULTS
 local CONST = M.CONST
 local ICONS = CONST.ICONS
 local isFrameInRaidContainer = M.IsFrameInRaidContainer
+local safeGetValue = M.SafeGetValue
+local getFrameUnit = M.GetFrameUnit
+local isSecretValue = M.IsSecretValue or issecretvalue or function() return false end
+
+local function isTrue(value)
+	return not isSecretValue(value) and value == true
+end
+
+local function getClassColor(unit)
+	if not unit then return nil end
+	local okPlayer, isPlayer = pcall(UnitIsPlayer, unit)
+	if not okPlayer or isSecretValue(isPlayer) or not isPlayer then return nil end
+	local okClass, _, class = pcall(UnitClass, unit)
+	if not okClass or isSecretValue(class) or not class then return nil end
+	return RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] or nil
+end
+
+local function tintIndicator(tex, unit, settingKey, desaturateWhenTinted)
+	if not tex or not tex.SetVertexColor then return end
+	if M.DB and M.DB[settingKey] then
+		local color = getClassColor(unit)
+		if color then
+			if desaturateWhenTinted and tex.SetDesaturated then
+				tex:SetDesaturated(true)
+			end
+			tex:SetVertexColor(color.r, color.g, color.b, 1)
+			return
+		end
+	end
+	if tex.SetDesaturated then
+		tex:SetDesaturated(false)
+	end
+	tex:SetVertexColor(1, 1, 1, 1)
+end
+
+local function getRosterUnit(frame)
+	if not frame then return nil end
+	local unit = safeGetValue(frame, "unit")
+	if type(unit) == "string" and unit ~= "" then
+		return unit
+	end
+	return getFrameUnit(frame)
+end
 
 local function getIndicatorAnchorInfo(anchor)
 	if anchor == "RIGHT" then
@@ -38,18 +81,94 @@ local function placeIndicatorIcon(frame, tex, anchor, index, iconSize, spacing, 
 	end
 end
 
-local function updateLeaderAssistIndicator(frame)
-	if not frame or not frame.unit or not M.DB then return end
-	if not isFrameInRaidContainer(frame) then return end
+local function getReadyCheckAtlas(status)
+	if status == "ready" then
+		return READY_CHECK_READY_TEXTURE_RAID or "UI-LFG-ReadyMark-Raid"
+	elseif status == "notready" then
+		return READY_CHECK_NOT_READY_TEXTURE_RAID or "UI-LFG-DeclineMark-Raid"
+	elseif status == "waiting" then
+		return READY_CHECK_WAITING_TEXTURE_RAID or "UI-LFG-PendingMark-Raid"
+	end
+	return nil
+end
 
-	local unit = frame.displayedUnit or frame.unit
-	if not unit then return end
+local function setReadyCheckAtlas(tex, atlas)
+	if not tex or not atlas then return end
+	if tex.SetAtlas then
+		if TextureKitConstants and TextureKitConstants.IgnoreAtlasSize ~= nil then
+			tex:SetAtlas(atlas, TextureKitConstants.IgnoreAtlasSize)
+		else
+			tex:SetAtlas(atlas)
+		end
+	end
+end
+
+local function getReadyCheckIconSize()
+	local iconSize = tonumber(M.DB and M.DB.readyCheckIconSize) or DEFAULTS.readyCheckIconSize
+	if iconSize < 8 then iconSize = 8 end
+	if iconSize > 40 then iconSize = 40 end
+	return iconSize
+end
+
+local function applyReadyCheckIconStyle(readyCheckIcon, status)
+	if not readyCheckIcon or not M.DB then return end
+	local frame = readyCheckIcon.GetParent and readyCheckIcon:GetParent()
+	if not frame or not isFrameInRaidContainer(frame) then return end
+
+	readyCheckIcon._srfLastStatus = status
+	local customIcon = frame._srfReadyCheckIcon
+	if not M.DB.readyCheckIconEnabled then
+		if customIcon then customIcon:Hide() end
+		return
+	end
+
+	local atlas = getReadyCheckAtlas(status)
+	if not atlas then
+		if customIcon then customIcon:Hide() end
+		if readyCheckIcon.Hide then readyCheckIcon:Hide() end
+		return
+	end
+
+	if not customIcon then
+		customIcon = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+		customIcon:SetTexCoord(0, 1, 0, 1)
+		if customIcon.SetIgnoreParentAlpha then
+			customIcon:SetIgnoreParentAlpha(true)
+		end
+		frame._srfReadyCheckIcon = customIcon
+	end
+
+	local iconSize = getReadyCheckIconSize()
+	local anchor = M.DB.readyCheckIconAnchor or DEFAULTS.readyCheckIconAnchor
+	local offsetX = tonumber(M.DB.readyCheckIconOffsetX) or 0
+	local offsetY = tonumber(M.DB.readyCheckIconOffsetY) or 0
+	setReadyCheckAtlas(customIcon, atlas)
+	customIcon:SetVertexColor(1, 1, 1, 1)
+	customIcon:SetSize(iconSize, iconSize)
+	placeIndicatorIcon(frame, customIcon, anchor, 1, iconSize, 2, offsetX, offsetY)
+	customIcon:Show()
+	if readyCheckIcon.Hide then readyCheckIcon:Hide() end
+end
+
+local function refreshReadyCheckIcon(frame)
+	if not frame or not frame.readyCheckIcon or not isFrameInRaidContainer(frame) then return end
+	local status = frame.readyCheckIcon._srfLastStatus or frame.readyCheckStatus
+	if M.DB and not M.DB.readyCheckIconEnabled and frame.readyCheckIcon.SetStatus then
+		frame.readyCheckIcon:SetStatus(status)
+	end
+	applyReadyCheckIconStyle(frame.readyCheckIcon, status)
+end
+
+local function updateLeaderAssistIndicator(frame)
+	local unit = getRosterUnit(frame)
+	if not frame or not unit or not M.DB then return end
+	if not isFrameInRaidContainer(frame) then return end
 
 	local inGroup = (IsInGroup and IsInGroup()) or false
 	local okLeader, isLeader = pcall(UnitIsGroupLeader, unit)
 	local okAssist, isAssist = pcall(UnitIsGroupAssistant, unit)
-	local showLeader = inGroup and okLeader and isLeader and M.DB.leaderAssistEnabled
-	local showAssist = inGroup and okAssist and isAssist and M.DB.leaderAssistEnabled
+	local showLeader = inGroup and okLeader and isTrue(isLeader) and M.DB.leaderAssistEnabled
+	local showAssist = inGroup and okAssist and isTrue(isAssist) and M.DB.leaderAssistEnabled
 
 	local leaderIcon = frame._srfLeaderIcon
 	if not leaderIcon then
@@ -82,8 +201,9 @@ local function updateLeaderAssistIndicator(frame)
 	end
 
 	local _, size
-	if frame.name and frame.name.GetFont then
-		_, size = frame.name:GetFont()
+	local nameRegion = safeGetValue(frame, "name")
+	if nameRegion and nameRegion.GetFont then
+		_, size = nameRegion:GetFont()
 	end
 	local iconSize = tonumber(size) or 12
 	if iconSize < 8 then iconSize = 8 end
@@ -96,17 +216,21 @@ local function updateLeaderAssistIndicator(frame)
 
 	if showLeader then
 		leaderIcon:SetSize(iconSize, iconSize)
+		tintIndicator(leaderIcon, unit, "leaderAssistClassColor", true)
 		placeIndicatorIcon(frame, leaderIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		leaderIcon:Show()
 	elseif showAssist then
 		assistIcon:SetSize(iconSize, iconSize)
+		tintIndicator(assistIcon, unit, "leaderAssistClassColor", true)
 		placeIndicatorIcon(frame, assistIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		assistIcon:Show()
 	end
 end
 
 local function updateOfflineIndicator(frame)
-	if not frame or not frame.statusText or not frame.unit or not M.DB then return end
+	local statusText = safeGetValue(frame, "statusText")
+	local unit = getFrameUnit(frame)
+	if not frame or not statusText or not unit or not M.DB then return end
 	if not isFrameInRaidContainer(frame) then return end
 	if not M.DB.statusIndicatorsEnabled then
 		if frame._srfOfflineIcon then frame._srfOfflineIcon:Hide() end
@@ -118,28 +242,37 @@ local function updateOfflineIndicator(frame)
 	end
 
 	local isOffline = false
-	local ok, connected = pcall(UnitIsConnected, frame.unit)
-	if ok and connected == false then
+	local ok, connected = pcall(UnitIsConnected, unit)
+	if ok and not isSecretValue(connected) and connected == false then
 		isOffline = true
 	end
 	local isAfk = false
-	local okAfk, afk = pcall(UnitIsAFK, frame.unit)
-	if okAfk and afk == true then
-		isAfk = true
-	end
 	local isDnd = false
-	local okDnd, dnd = pcall(UnitIsDND, frame.unit)
-	if okDnd and dnd == true then
-		isDnd = true
+	local chatLockedDown = false
+	if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
+		local okChat, locked = pcall(C_ChatInfo.InChatMessagingLockdown)
+		if okChat and isTrue(locked) then
+			chatLockedDown = true
+		end
+	end
+	if not chatLockedDown then
+		local okAfk, afk = pcall(UnitIsAFK, unit)
+		if okAfk and isTrue(afk) then
+			isAfk = true
+		end
+		local okDnd, dnd = pcall(UnitIsDND, unit)
+		if okDnd and isTrue(dnd) then
+			isDnd = true
+		end
 	end
 	local isGhost = false
-	local okGhost, ghost = pcall(UnitIsGhost, frame.unit)
-	if okGhost and ghost == true then
+	local okGhost, ghost = pcall(UnitIsGhost, unit)
+	if okGhost and isTrue(ghost) then
 		isGhost = true
 	end
 	local isDead = false
-	local okDead, deadOrGhost = pcall(UnitIsDeadOrGhost, frame.unit)
-	if okDead and deadOrGhost == true and not isGhost then
+	local okDead, deadOrGhost = pcall(UnitIsDeadOrGhost, unit)
+	if okDead and isTrue(deadOrGhost) and not isGhost then
 		isDead = true
 	end
 
@@ -180,11 +313,12 @@ local function updateOfflineIndicator(frame)
 	end
 
 	local _, size
-	if frame.name and frame.name.GetFont then
-		_, size = frame.name:GetFont()
+	local nameRegion = safeGetValue(frame, "name")
+	if nameRegion and nameRegion.GetFont then
+		_, size = nameRegion:GetFont()
 	end
-	if not size and frame.statusText.GetFont then
-		_, size = frame.statusText:GetFont()
+	if not size and statusText.GetFont then
+		_, size = statusText:GetFont()
 	end
 	local iconSize = tonumber(size) or 12
 	if iconSize < 8 then iconSize = 8 end
@@ -201,19 +335,21 @@ local function updateOfflineIndicator(frame)
 	ghostIcon:Hide()
 
 	if isOffline then
-		if frame.statusText.Hide then frame.statusText:Hide() end
+		if statusText.Hide then statusText:Hide() end
 		icon:SetSize(iconSize, iconSize)
+		tintIndicator(icon, unit, "statusIndicatorClassColor")
 		placeIndicatorIcon(frame, icon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		icon:Show()
 		return
 	end
 
 	if isDead or isGhost then
-		if frame.statusText.Hide then frame.statusText:Hide() end
+		if statusText.Hide then statusText:Hide() end
 	end
 
 	if isAfk then
 		afkIcon:SetSize(iconSize, iconSize)
+		tintIndicator(afkIcon, unit, "statusIndicatorClassColor")
 		placeIndicatorIcon(frame, afkIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		afkIcon:Show()
 	end
@@ -221,6 +357,7 @@ local function updateOfflineIndicator(frame)
 	if isDead or isGhost then
 		local tex = isGhost and ghostIcon or deadIcon
 		tex:SetSize(iconSize, iconSize)
+		tintIndicator(tex, unit, "statusIndicatorClassColor")
 		local index = isAfk and 2 or 1
 		placeIndicatorIcon(frame, tex, anchor, index, iconSize, spacing, offsetX, offsetY)
 		tex:Show()
@@ -228,6 +365,7 @@ local function updateOfflineIndicator(frame)
 
 	if not isAfk and not isDead and not isGhost and isDnd then
 		dndIcon:SetSize(iconSize, iconSize)
+		tintIndicator(dndIcon, unit, "statusIndicatorClassColor")
 		placeIndicatorIcon(frame, dndIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		dndIcon:Show()
 	end
@@ -238,6 +376,7 @@ function M:RefreshRaidStatusText()
 		if not frame then return end
 		updateOfflineIndicator(frame)
 		updateLeaderAssistIndicator(frame)
+		refreshReadyCheckIcon(frame)
 	end
 	if CompactRaidFrameContainer and CompactRaidFrameContainer.ApplyToFrames then
 		CompactRaidFrameContainer:ApplyToFrames("normal", refresh)
@@ -249,7 +388,35 @@ function M:RefreshRaidStatusText()
 	end
 end
 
-M.GetIndicatorAnchorInfo = getIndicatorAnchorInfo
-M.PlaceIndicatorIcon = placeIndicatorIcon
-M.UpdateLeaderAssistIndicator = updateLeaderAssistIndicator
+local statusRefreshPending
+local statusRefreshFrame
+
+local function scheduleStatusRefresh()
+	if statusRefreshPending then return end
+	statusRefreshPending = true
+	local function refresh()
+		statusRefreshPending = false
+		if M and M.RefreshRaidStatusText then
+			M:RefreshRaidStatusText()
+		end
+	end
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, refresh)
+	else
+		refresh()
+	end
+end
+
+local function ensureStatusIndicatorRefresh()
+	if statusRefreshFrame then return end
+	statusRefreshFrame = CreateFrame("Frame")
+	statusRefreshFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+	statusRefreshFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+	statusRefreshFrame:RegisterEvent("PARTY_LEADER_CHANGED")
+	statusRefreshFrame:SetScript("OnEvent", scheduleStatusRefresh)
+end
+
 M.UpdateOfflineIndicator = updateOfflineIndicator
+M.UpdateLeaderAssistIndicator = updateLeaderAssistIndicator
+M.ApplyReadyCheckIconStyle = applyReadyCheckIconStyle
+M.EnsureStatusIndicatorRefresh = ensureStatusIndicatorRefresh

@@ -24,12 +24,41 @@ function M:CreateSettingsPanel()
 
 	local category = Settings.RegisterCanvasLayoutCategory(panel, M._settingsCategoryName)
 	Settings.RegisterAddOnCategory(category)
-	M._settingsPanel = panel
 end
 
 local function printSlashHelp()
 	print("|cFF9CDF95Simple|rRaidFrames: '|cFF9CDF95/srf|r' for in-game configuration.")
 end
+
+local function getCurrentPatchKey()
+	local version, _, _, interfaceVersion = GetBuildInfo()
+	if type(version) == "string" and version ~= "" then
+		return version
+	end
+	if type(interfaceVersion) == "number" then
+		return tostring(interfaceVersion)
+	end
+	return "unknown"
+end
+
+local function maybePrintSlashHelp()
+	if type(SimpleRaidFramesDB) ~= "table" then
+		printSlashHelp()
+		return
+	end
+	local patchKey = getCurrentPatchKey()
+	if SimpleRaidFramesDB.lastSlashHelpPatch ~= patchKey then
+		SimpleRaidFramesDB.lastSlashHelpPatch = patchKey
+		printSlashHelp()
+	end
+end
+
+local LATE_HOOK_ADDONS = {
+	Blizzard_CompactRaidFrames = true,
+	Blizzard_CUFProfiles = true,
+	Blizzard_SettingsDefinitions_Frame = true,
+	Blizzard_UnitFrame = true,
+}
 
 SLASH_SIMPLERAIDFRAMES1 = "/srf"
 SLASH_SIMPLERAIDFRAMES2 = "/simpleraidframes"
@@ -52,22 +81,14 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 			M.EnsureDefaults()
 			M:CreateSettingsPanel()
 			M:EnsureHooks()
-		else
+		elseif LATE_HOOK_ADDONS[arg1] then
 			M:EnsureHooks()
 		end
 	elseif event == "PLAYER_LOGIN" then
 		M.EnsureDefaults()
 		M:EnsureHooks()
-		printSlashHelp()
+		maybePrintSlashHelp()
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if M._pendingPrivateAuraRefresh then
-			M._pendingPrivateAuraRefresh = false
-			M:RefreshPrivateAuras()
-		end
-		if M._pendingAuraLayoutRefresh then
-			M._pendingAuraLayoutRefresh = false
-			M:RefreshRaidAuras()
-		end
 		if M._pendingRoleIconRefresh then
 			M._pendingRoleIconRefresh = false
 			M:RefreshRaidRoleIcons()
@@ -76,12 +97,6 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 			M._pendingPartyVisibilityRefresh = false
 			if M.RefreshPartyPlayerVisibility then
 				M:RefreshPartyPlayerVisibility()
-			end
-		end
-		if M._pendingPartyFrameSizeRefresh then
-			M._pendingPartyFrameSizeRefresh = false
-			if M.RefreshPartyFrameWidth then
-				M:RefreshPartyFrameWidth()
 			end
 		end
 		if M._pendingPartySoloVisibilityRefresh then

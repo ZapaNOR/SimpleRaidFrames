@@ -91,6 +91,11 @@ local DEFAULTS = {
 	statusIndicatorAnchor = "LEFT",
 	statusIndicatorOffsetX = 0,
 	statusIndicatorOffsetY = 0,
+	readyCheckIconEnabled = false,
+	readyCheckIconAnchor = "CENTER",
+	readyCheckIconSize = 20,
+	readyCheckIconOffsetX = 0,
+	readyCheckIconOffsetY = 0,
 	leaderAssistClassColor = false,
 	statusIndicatorClassColor = false,
 }
@@ -334,6 +339,21 @@ local function ensureDefaults()
 	if SimpleRaidFramesDB.statusIndicatorOffsetY == nil then
 		SimpleRaidFramesDB.statusIndicatorOffsetY = DEFAULTS.statusIndicatorOffsetY
 	end
+	if SimpleRaidFramesDB.readyCheckIconEnabled == nil then
+		SimpleRaidFramesDB.readyCheckIconEnabled = DEFAULTS.readyCheckIconEnabled
+	end
+	if SimpleRaidFramesDB.readyCheckIconAnchor == nil then
+		SimpleRaidFramesDB.readyCheckIconAnchor = DEFAULTS.readyCheckIconAnchor
+	end
+	if SimpleRaidFramesDB.readyCheckIconSize == nil then
+		SimpleRaidFramesDB.readyCheckIconSize = DEFAULTS.readyCheckIconSize
+	end
+	if SimpleRaidFramesDB.readyCheckIconOffsetX == nil then
+		SimpleRaidFramesDB.readyCheckIconOffsetX = DEFAULTS.readyCheckIconOffsetX
+	end
+	if SimpleRaidFramesDB.readyCheckIconOffsetY == nil then
+		SimpleRaidFramesDB.readyCheckIconOffsetY = DEFAULTS.readyCheckIconOffsetY
+	end
 	if SimpleRaidFramesDB.leaderAssistAnchor ~= "TOP"
 		and SimpleRaidFramesDB.leaderAssistAnchor ~= "RIGHT"
 		and SimpleRaidFramesDB.leaderAssistAnchor ~= "BOTTOM"
@@ -356,6 +376,19 @@ local function ensureDefaults()
 		or DEFAULTS.statusIndicatorOffsetX
 	SimpleRaidFramesDB.statusIndicatorOffsetY = tonumber(SimpleRaidFramesDB.statusIndicatorOffsetY)
 		or DEFAULTS.statusIndicatorOffsetY
+	if SimpleRaidFramesDB.readyCheckIconAnchor ~= "TOP"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "RIGHT"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "BOTTOM"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "LEFT"
+		and SimpleRaidFramesDB.readyCheckIconAnchor ~= "CENTER" then
+		SimpleRaidFramesDB.readyCheckIconAnchor = DEFAULTS.readyCheckIconAnchor
+	end
+	SimpleRaidFramesDB.readyCheckIconSize = tonumber(SimpleRaidFramesDB.readyCheckIconSize)
+		or DEFAULTS.readyCheckIconSize
+	SimpleRaidFramesDB.readyCheckIconOffsetX = tonumber(SimpleRaidFramesDB.readyCheckIconOffsetX)
+		or DEFAULTS.readyCheckIconOffsetX
+	SimpleRaidFramesDB.readyCheckIconOffsetY = tonumber(SimpleRaidFramesDB.readyCheckIconOffsetY)
+		or DEFAULTS.readyCheckIconOffsetY
 	if SimpleRaidFramesDB.leaderAssistClassColor == nil then
 		SimpleRaidFramesDB.leaderAssistClassColor = DEFAULTS.leaderAssistClassColor
 	end

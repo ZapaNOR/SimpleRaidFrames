@@ -22,16 +22,31 @@ local function getClassColor(unit)
 	return RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] or nil
 end
 
-local function tintIndicator(tex, unit, settingKey)
+local function tintIndicator(tex, unit, settingKey, desaturateWhenTinted)
 	if not tex or not tex.SetVertexColor then return end
 	if M.DB and M.DB[settingKey] then
 		local color = getClassColor(unit)
 		if color then
+			if desaturateWhenTinted and tex.SetDesaturated then
+				tex:SetDesaturated(true)
+			end
 			tex:SetVertexColor(color.r, color.g, color.b, 1)
 			return
 		end
 	end
+	if tex.SetDesaturated then
+		tex:SetDesaturated(false)
+	end
 	tex:SetVertexColor(1, 1, 1, 1)
+end
+
+local function getRosterUnit(frame)
+	if not frame then return nil end
+	local unit = safeGetValue(frame, "unit")
+	if type(unit) == "string" and unit ~= "" then
+		return unit
+	end
+	return getFrameUnit(frame)
 end
 
 local function getIndicatorAnchorInfo(anchor)
@@ -66,8 +81,86 @@ local function placeIndicatorIcon(frame, tex, anchor, index, iconSize, spacing, 
 	end
 end
 
+local function getReadyCheckAtlas(status)
+	if status == "ready" then
+		return READY_CHECK_READY_TEXTURE_RAID or "UI-LFG-ReadyMark-Raid"
+	elseif status == "notready" then
+		return READY_CHECK_NOT_READY_TEXTURE_RAID or "UI-LFG-DeclineMark-Raid"
+	elseif status == "waiting" then
+		return READY_CHECK_WAITING_TEXTURE_RAID or "UI-LFG-PendingMark-Raid"
+	end
+	return nil
+end
+
+local function setReadyCheckAtlas(tex, atlas)
+	if not tex or not atlas then return end
+	if tex.SetAtlas then
+		if TextureKitConstants and TextureKitConstants.IgnoreAtlasSize ~= nil then
+			tex:SetAtlas(atlas, TextureKitConstants.IgnoreAtlasSize)
+		else
+			tex:SetAtlas(atlas)
+		end
+	end
+end
+
+local function getReadyCheckIconSize()
+	local iconSize = tonumber(M.DB and M.DB.readyCheckIconSize) or DEFAULTS.readyCheckIconSize
+	if iconSize < 8 then iconSize = 8 end
+	if iconSize > 40 then iconSize = 40 end
+	return iconSize
+end
+
+local function applyReadyCheckIconStyle(readyCheckIcon, status)
+	if not readyCheckIcon or not M.DB then return end
+	local frame = readyCheckIcon.GetParent and readyCheckIcon:GetParent()
+	if not frame or not isFrameInRaidContainer(frame) then return end
+
+	readyCheckIcon._srfLastStatus = status
+	local customIcon = frame._srfReadyCheckIcon
+	if not M.DB.readyCheckIconEnabled then
+		if customIcon then customIcon:Hide() end
+		return
+	end
+
+	local atlas = getReadyCheckAtlas(status)
+	if not atlas then
+		if customIcon then customIcon:Hide() end
+		if readyCheckIcon.Hide then readyCheckIcon:Hide() end
+		return
+	end
+
+	if not customIcon then
+		customIcon = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+		customIcon:SetTexCoord(0, 1, 0, 1)
+		if customIcon.SetIgnoreParentAlpha then
+			customIcon:SetIgnoreParentAlpha(true)
+		end
+		frame._srfReadyCheckIcon = customIcon
+	end
+
+	local iconSize = getReadyCheckIconSize()
+	local anchor = M.DB.readyCheckIconAnchor or DEFAULTS.readyCheckIconAnchor
+	local offsetX = tonumber(M.DB.readyCheckIconOffsetX) or 0
+	local offsetY = tonumber(M.DB.readyCheckIconOffsetY) or 0
+	setReadyCheckAtlas(customIcon, atlas)
+	customIcon:SetVertexColor(1, 1, 1, 1)
+	customIcon:SetSize(iconSize, iconSize)
+	placeIndicatorIcon(frame, customIcon, anchor, 1, iconSize, 2, offsetX, offsetY)
+	customIcon:Show()
+	if readyCheckIcon.Hide then readyCheckIcon:Hide() end
+end
+
+local function refreshReadyCheckIcon(frame)
+	if not frame or not frame.readyCheckIcon or not isFrameInRaidContainer(frame) then return end
+	local status = frame.readyCheckIcon._srfLastStatus or frame.readyCheckStatus
+	if M.DB and not M.DB.readyCheckIconEnabled and frame.readyCheckIcon.SetStatus then
+		frame.readyCheckIcon:SetStatus(status)
+	end
+	applyReadyCheckIconStyle(frame.readyCheckIcon, status)
+end
+
 local function updateLeaderAssistIndicator(frame)
-	local unit = getFrameUnit(frame)
+	local unit = getRosterUnit(frame)
 	if not frame or not unit or not M.DB then return end
 	if not isFrameInRaidContainer(frame) then return end
 
@@ -123,12 +216,12 @@ local function updateLeaderAssistIndicator(frame)
 
 	if showLeader then
 		leaderIcon:SetSize(iconSize, iconSize)
-		tintIndicator(leaderIcon, unit, "leaderAssistClassColor")
+		tintIndicator(leaderIcon, unit, "leaderAssistClassColor", true)
 		placeIndicatorIcon(frame, leaderIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		leaderIcon:Show()
 	elseif showAssist then
 		assistIcon:SetSize(iconSize, iconSize)
-		tintIndicator(assistIcon, unit, "leaderAssistClassColor")
+		tintIndicator(assistIcon, unit, "leaderAssistClassColor", true)
 		placeIndicatorIcon(frame, assistIcon, anchor, 1, iconSize, spacing, offsetX, offsetY)
 		assistIcon:Show()
 	end
@@ -283,6 +376,7 @@ function M:RefreshRaidStatusText()
 		if not frame then return end
 		updateOfflineIndicator(frame)
 		updateLeaderAssistIndicator(frame)
+		refreshReadyCheckIcon(frame)
 	end
 	if CompactRaidFrameContainer and CompactRaidFrameContainer.ApplyToFrames then
 		CompactRaidFrameContainer:ApplyToFrames("normal", refresh)
@@ -323,4 +417,6 @@ local function ensureStatusIndicatorRefresh()
 end
 
 M.UpdateOfflineIndicator = updateOfflineIndicator
+M.UpdateLeaderAssistIndicator = updateLeaderAssistIndicator
+M.ApplyReadyCheckIconStyle = applyReadyCheckIconStyle
 M.EnsureStatusIndicatorRefresh = ensureStatusIndicatorRefresh
